@@ -250,7 +250,7 @@ class OMGLightning(L.LightningModule):
         gen, inter = self.si.integrate(x_0, self.model, save_intermediate=True)
         # probably want to turn structure back into some other object that's easier to work with
         filename = (Path(self.generation_xyz_filename) if self.generation_xyz_filename is not None
-                    else Path(f"{time.strftime("%Y%m%d-%H%M%S")}.xyz"))
+                    else Path(f"{time.strftime('%Y%m%d-%H%M%S')}.xyz"))
         init_filename = filename.with_stem(filename.stem + "_init")
         xyz_saver(x_0.to("cpu"), init_filename)
         xyz_saver(gen.to("cpu"), filename)
