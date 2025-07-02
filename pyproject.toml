@@ -5,32 +5,28 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "omg"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.14"
 version = "0.1"
 dependencies = [
-    "numpy ~= 1.26",
-    "scipy ~= 1.14",
-    "torch == 2.4.1",
-    "lightning ~= 2.4",
+    "numpy ~= 2.3",
+    "scipy ~= 1.16",
+    "torch ~= 2.7",
+    "lightning[extra] ~= 2.5",
     "torch_geometric ~= 2.6",
     "torch_scatter ~= 2.1",
     "torchdiffeq ~= 0.2",
     "torchsde ~= 0.2",
-    "lmdb ~= 1.5",
+    "lmdb ~= 1.6",
     "loguru ~= 0.7",
-    "monty ~= 2024.7",
-    "ase ~= 3.23",
-    "jsonargparse ~= 4.33",
-    "jsonargparse[signatures] ~= 4.27",
-    "lightning[pytorch-extra]",
-    "pytest ~= 8.3",
-    "tqdm ~= 4.65",
-    "smact ~= 3.0",
-    "wandb ~= 0.18",
-    "scikit-learn ~= 1.5",
-    "matplotlib ~= 3.9",
-    "pymatgen ~= 2024.11",
-    "spglib ~= 2.5",
+    "ase ~= 3.25",
+    "pytest ~= 8.4",
+    "tqdm ~= 4.67",
+    "smact ~= 3.1",
+    "wandb ~= 0.20",
+    "scikit-learn ~= 1.7",
+    "matplotlib ~= 3.10",
+    "pymatgen ~= 2025.6",
+    "spglib ~= 2.6",
     "pyyaml ~= 6.0",
     "matminer ~= 0.9"
 ]
