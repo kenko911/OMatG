@@ -1,5 +1,7 @@
 # OMatG: Open Materials Generation
 
+![csp movie](assets/csp_movie.gif)
+
 A generative model for crystal structure prediction and de novo generation of inorganic crystals. 
 
 This open-source framework accompanies the paper available at [OpenReview](https://openreview.net/forum?id=ka2jxtCrkK#discussion),
