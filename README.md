@@ -16,7 +16,7 @@ You can use any Python version between 3.10 and 3.12.
 Install the dependencies and the `omg` package itself via pip. 
 
 To install `omg` in editable mode (recommended for developers), use `pip install -e .` within the base directory of this 
-repository once. Any changes in code are directly available in the installed `omg` package. (**NOTE**: Installing `torch=2.7.1`, `torch_geometric`, and `torch-scatter` before `omg` can help minimize sources of errors during installation).
+repository once. Any changes in code are directly available in the installed `omg` package. (**NOTE**: Installing `torch=2.7.1` based on your version of `CUDA` in addition to `torch_geometric`, and `torch-scatter` before installing `omg` can help minimize sources of errors).
 
 To install `omg` as a package, use `pip install .` instead. If the code in this repository changes, this command has to 
 executed again to also change the code of the installed package.
