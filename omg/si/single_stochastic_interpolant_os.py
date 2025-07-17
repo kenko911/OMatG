@@ -4,7 +4,7 @@ from torch_scatter import scatter_mean
 from torchdiffeq import odeint
 from torchsde import sdeint
 from .abstracts import Corrector, Epsilon, Interpolant, StochasticInterpolant
-from .interpolants import ScoreBasedDiffusionModelInterpolant
+from .interpolants import ScoreBasedDiffusionModelInterpolantVP, ScoreBasedDiffusionModelInterpolantVE
 from .single_stochastic_interpolant import DifferentialEquationType
 
 
@@ -89,8 +89,11 @@ class SingleStochasticInterpolantOS(StochasticInterpolant):
         self._integrator_kwargs = integrator_kwargs if integrator_kwargs is not None else {}
         self._correct_center_of_mass_motion = correct_center_of_mass_motion
         self._predict_velocity = predict_velocity
-        # This is also true for the PeriodicScoreBasedDiffusionModelInterpolant.
-        self._use_antithetic = isinstance(self._interpolant, ScoreBasedDiffusionModelInterpolant)
+        # This is also true for the PeriodicScoreBasedDiffusionModelInterpolantVP and
+        # PeriodicScoreBasedDiffusionModelInterpolantVE.
+        self._use_antithetic = isinstance(self._interpolant,
+                                          (ScoreBasedDiffusionModelInterpolantVP,
+                                           ScoreBasedDiffusionModelInterpolantVE))
         self._velocity_annealing_factor = velocity_annealing_factor
         if not self._predict_velocity and self._velocity_annealing_factor is not None:
             raise ValueError("Velocity annealing factor should only be set if predict_velocity is True.")

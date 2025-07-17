@@ -5,7 +5,8 @@ from .discrete_flow_matching_uniform import DiscreteFlowMatchingUniform
 from .epsilon import ConstantEpsilon, VanishingEpsilon
 from .gamma import LatentGammaSqrt, LatentGammaEncoderDecoder
 from .interpolants import (LinearInterpolant, TrigonometricInterpolant, EncoderDecoderInterpolant, MirrorInterpolant,
-                           ScoreBasedDiffusionModelInterpolant, PeriodicLinearInterpolant)
+                           ScoreBasedDiffusionModelInterpolantVP, ScoreBasedDiffusionModelInterpolantVE,
+                           PeriodicLinearInterpolant)
 from .single_stochastic_interpolant import DifferentialEquationType, SingleStochasticInterpolant
 from .single_stochastic_interpolant_identity import SingleStochasticInterpolantIdentity
 from .stochastic_interpolants import StochasticInterpolants

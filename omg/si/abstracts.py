@@ -424,3 +424,79 @@ class StochasticInterpolantSpecies(StochasticInterpolant, ABC):
         :rtype: bool
         """
         raise NotImplementedError
+
+
+class Sigma(ABC, TimeChecker):
+    """
+    Abstract class for defining a noise schedule sigma(s) for a one-sided variance-exploding interpolant.
+
+    The one-sided variance-exploding interpolant is defined as x_t = sqrt(sigma^2(1-t) - sigma^2(0)) * x_0 + x_1.
+    Note the inversion of time, that is, the noise sigma(s) should be smallest at s=0 and largest at s=1.
+    """
+
+    @abstractmethod
+    def sigma(self, s: torch.Tensor) -> torch.Tensor:
+        """
+        Evaluate the sigma function at times s.
+
+        :param s:
+            Times in [0,1].
+        :type s: torch.Tensor
+
+        :return:
+            Sigma function sigma(s).
+        :rtype: torch.Tensor
+        """
+        raise NotImplementedError
+
+    def sigma_dot(self, s: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the derivative of the sigma function with respect to time.
+
+        :param s:
+            Times in [0,1].
+        :type s: torch.Tensor
+
+        :return:
+            Derivative of the sigma function at the given times.
+        :rtype: torch.Tensor
+        """
+        raise NotImplementedError
+
+
+class Tau(ABC, TimeChecker):
+    """
+    Abstract class for defining the tau function tau(t) for a one-sided variance-preserving interpolant.
+
+    The one-sided variance-preserving interpolant is defined as x_t = sqrt(1 - tau^2(t)) * x_0 + tau(t) * x_1.
+    """
+
+    @abstractmethod
+    def tau(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Evaluate the tau function at times t.
+
+        :param t:
+            Times in [0,1].
+        :type t: torch.Tensor
+
+        :return:
+            Tau function tau(t).
+        :rtype: torch.Tensor
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def tau_dot(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the derivative of the tau function with respect to time.
+
+        :param t:
+            Times in [0,1].
+        :type t: torch.Tensor
+
+        :return:
+            Derivative of the tau function at the given times.
+        :rtype: torch.Tensor
+        """
+        raise NotImplementedError

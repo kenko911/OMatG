@@ -1,5 +1,6 @@
+from math import exp
 import torch
-from .abstracts import Interpolant
+from .abstracts import Interpolant, Sigma, Tau
 from .corrector import Corrector, IdentityCorrector, PeriodicBoundaryConditionsCorrector
 
 
@@ -416,18 +417,24 @@ class PeriodicMirrorInterpolant(MirrorInterpolant):
         return self._corrector
 
 
-class ScoreBasedDiffusionModelInterpolant(Interpolant):
+class ScoreBasedDiffusionModelInterpolantVP(Interpolant):
     """
-    Interpolant I(t, x_0, x_1) = sqrt(1 - t^2) * x_0 + t * x_1 between points x_0 and x_1 from
-    two distributions p_0 (assumed to be Gaussian here) and p_1 at times t that can be used to reproduce score-based
-    diffusion models.
+    Interpolant I(t, x_0, x_1) = sqrt(1 - tau^2(t)) * x_0 + tau(t) * x_1 between points x_0 and x_1 from two
+    distributions p_0 (assumed to be Gaussian here) and p_1 at times t that can be used to reproduce variance-preserving
+    score-based diffusion models.
+
+    :param tau:
+        Tau function that defines the noise schedule.
+    :type tau: Tau
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tau: Tau) -> None:
         """
         Construct VP interpolant.
         """
         super().__init__()
+        self._tau = tau
+        self._one_over_e = 1.0 / exp(1.0)
 
     def alpha(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -441,7 +448,7 @@ class ScoreBasedDiffusionModelInterpolant(Interpolant):
             Values of the alpha function at the given times.
         :rtype: torch.Tensor
         """
-        return torch.sqrt(1.0 - (t ** 2))
+        return torch.sqrt(1.0 - self._tau.tau(t) ** 2)
 
     def alpha_dot(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -455,7 +462,10 @@ class ScoreBasedDiffusionModelInterpolant(Interpolant):
             Derivatives of the alpha function at the given times.
         :rtype: torch.Tensor
         """
-        return -t / torch.sqrt(1.0 - (t ** 2))
+        tau = self._tau.tau(t)
+        t_sqrt = torch.sqrt(1.0 - tau ** 2)
+        tau_dot = self._tau.tau_dot(t)
+        return -tau * tau_dot / t_sqrt
 
     def beta(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -469,7 +479,7 @@ class ScoreBasedDiffusionModelInterpolant(Interpolant):
             Values of the beta function at the given times.
         :rtype: torch.Tensor
         """
-        return t.clone()
+        return self._tau.tau(t)
 
     def beta_dot(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -483,7 +493,7 @@ class ScoreBasedDiffusionModelInterpolant(Interpolant):
             Derivatives of the beta function at the given times.
         :rtype: torch.Tensor
         """
-        return torch.ones_like(t)
+        return self._tau.tau_dot(t)
 
     def get_corrector(self) -> Corrector:
         """
@@ -496,18 +506,139 @@ class ScoreBasedDiffusionModelInterpolant(Interpolant):
         return IdentityCorrector()
 
 
-class PeriodicScoreBasedDiffusionModelInterpolant(ScoreBasedDiffusionModelInterpolant):
+class PeriodicScoreBasedDiffusionModelInterpolantVP(ScoreBasedDiffusionModelInterpolantVP):
     """
-    Interpolant I(t, x_0, x_1) = sqrt(1 - t^2) * x_0 + t * x_1 between points x_0 and x_1 from
-    two distributions p_0 (assumed to be Gaussian here) and p_1 at times t with periodic boundary that can be used to
-    reproduce score-based diffusion models. The coordinates are assumed to be in [0,1].
+    Interpolant I(t, x_0, x_1) = sqrt(1 - tau^2(t)) * x_0 + tau(t) * x_1 between points x_0 and x_1 from two
+    distributions p_0 (assumed to be Gaussian here) and p_1 at times t with periodic boundary conditions that can be
+    used to reproduce variance-preserving score-based diffusion models.
+
+    :param tau:
+        Tau function that defines the noise schedule.
+    :type tau: Tau
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tau: Tau) -> None:
         """
         Construct periodic VP interpolant.
         """
+        super().__init__(tau=tau)
+        self._corrector = PeriodicBoundaryConditionsCorrector(min_value=0.0, max_value=1.0)
+
+    def get_corrector(self) -> Corrector:
+        """
+        Get the corrector implied by the interpolant.
+
+        :return:
+            Corrector that corrects for periodic boundary conditions.
+        :rtype: Corrector
+        """
+        return self._corrector
+
+
+class ScoreBasedDiffusionModelInterpolantVE(Interpolant):
+    """
+    Interpolant I(t, x_0, x_1) = sqrt(sigma_(1-t)^2 - sigma(0)^2) * x_0 + x_1 between points x_0 and x_1 from two
+    distributions p_0 (assumed to be Gaussian here) and p_1 at times t that can be used to reproduce variance-exploding
+    score-based diffusion models.
+
+    :param sigma:
+        Sigma function that defines the noise schedule.
+    :type sigma: Sigma
+    """
+
+    def __init__(self, sigma: Sigma) -> None:
+        """
+        Construct VP interpolant.
+        """
         super().__init__()
+        self._sigma = sigma
+
+    def alpha(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Alpha function alpha(t) in the linear interpolant.
+
+        :param t:
+            Times in [0,1].
+        :type t: torch.Tensor
+
+        :return:
+            Values of the alpha function at the given times.
+        :rtype: torch.Tensor
+        """
+        return torch.sqrt(self._sigma.sigma(1.0 - t) ** 2 - self._sigma.sigma(torch.zeros_like(t)) ** 2)
+
+    def alpha_dot(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Time derivative of the alpha function in the linear interpolant.
+
+        :param t:
+            Times in [0,1].
+        :type t: torch.Tensor
+
+        :return:
+            Derivatives of the alpha function at the given times.
+        :rtype: torch.Tensor
+        """
+        sigma = self._sigma.sigma(1.0 - t)
+        alpha = torch.sqrt(sigma ** 2 - self._sigma.sigma(torch.zeros_like(t)) ** 2)
+        derivative = self._sigma.sigma_dot(1.0 - t)
+        return - sigma * derivative / alpha
+
+    def beta(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Beta function beta(t) in the linear interpolant.
+
+        :param t:
+            Times in [0,1].
+        :type t: torch.Tensor
+
+        :return:
+            Values of the beta function at the given times.
+        :rtype: torch.Tensor
+        """
+        return torch.ones_like(t)
+
+    def beta_dot(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Time derivative of the beta function in the linear interpolant.
+
+        :param t:
+            Times in [0,1].
+        :type t: torch.Tensor
+
+        :return:
+            Derivatives of the beta function at the given times.
+        :rtype: torch.Tensor
+        """
+        return torch.zeros_like(t)
+
+    def get_corrector(self) -> Corrector:
+        """
+        Get the corrector implied by the interpolant.
+
+        :return:
+            Identity corrector that does nothing.
+        :rtype: Corrector
+        """
+        return IdentityCorrector()
+
+
+class PeriodicScoreBasedDiffusionModelInterpolantVE(ScoreBasedDiffusionModelInterpolantVE):
+    """
+    Interpolant I(t, x_0, x_1) = sqrt(sigma_(1-t)^2 - sigma(0)^2) * x_0 + x_1 between points x_0 and x_1 from two
+    distributions p_0 (assumed to be Gaussian here) and p_1 at times t with periodic boundary conditions that can be
+    used to reproduce variance-exploding score-based diffusion models.
+
+    :param sigma:
+        Sigma function that defines the noise schedule.
+    :type sigma: Sigma
+    """
+
+    def __init__(self, sigma: Sigma) -> None:
+        """
+        Construct periodic VP interpolant.
+        """
+        super().__init__(sigma=sigma)
         self._corrector = PeriodicBoundaryConditionsCorrector(min_value=0.0, max_value=1.0)
 
     def get_corrector(self) -> Corrector:

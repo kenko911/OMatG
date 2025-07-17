@@ -5,7 +5,7 @@ from torch_scatter import scatter_mean
 from torchdiffeq import odeint
 from torchsde import sdeint
 from .abstracts import Corrector, Epsilon, Interpolant, LatentGamma, StochasticInterpolant
-from .interpolants import ScoreBasedDiffusionModelInterpolant
+from .interpolants import ScoreBasedDiffusionModelInterpolantVP, ScoreBasedDiffusionModelInterpolantVE
 
 
 class DifferentialEquationType(Enum):
@@ -104,10 +104,13 @@ class SingleStochasticInterpolant(StochasticInterpolant):
         self._integrator_kwargs = integrator_kwargs if integrator_kwargs is not None else {}
         self._correct_center_of_mass_motion = correct_center_of_mass_motion
         self._velocity_annealing_factor = velocity_annealing_factor
-        # This also disables PeriodicScoreBasedDiffusionModelInterpolant.
-        if isinstance(self._interpolant, ScoreBasedDiffusionModelInterpolant):
-            raise ValueError("The interpolant should not be a ScoreBasedDiffusionModelInterpolant because it requires "
-                             "antithetic sampling on the level of alpha(t).")
+        # This also disables PeriodicScoreBasedDiffusionModelInterpolantVP and
+        # PeriodicScoreBasedDiffusionModelInterpolantVE.
+        if isinstance(self._interpolant,
+                      (ScoreBasedDiffusionModelInterpolantVP, ScoreBasedDiffusionModelInterpolantVE)):
+            raise ValueError("The interpolant should not be a ScoreBasedDiffusionModelInterpolantVP or "
+                             "ScoreBasedDiffusionModelInterpolantVE because it requires antithetic sampling on the "
+                             "level of alpha(t).")
 
     def interpolate(self, t: torch.Tensor, x_0: torch.Tensor, x_1: torch.Tensor,
                     batch_indices: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
