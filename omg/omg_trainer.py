@@ -30,7 +30,7 @@ class OMGTrainer(Trainer):
         super().__init__(*args, **kwargs)
 
     def visualize(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str,
-                  plot_name: str = "viz.pdf") -> None:
+                  plot_name: str = "viz.pdf", skip_init: bool = False) -> None:
         """
         Compare the distributions of the volume, the element composition, and the number of unique elements per
         structure in the test and generated dataset. Also, plot the root mean-square distance between the fractional
@@ -47,16 +47,26 @@ class OMGTrainer(Trainer):
             This argument has to be set on the command line.
         :type xyz_file: str
         :param plot_name:
-            Filename for the plots (defaults to viz.pdf).
+            Filename for the plots.
+            Defaults to "viz.pdf".
             This argument can be optionally set on the command line.
         :type plot_name: str
+        :param skip_init:
+            Whether to skip the initial structures (sampled from rho_0) in the visualization.
+            If set to True, only the final generated structures (generated from rho_1) will be visualized.
+            Defaults to False.
+            This argument can be optionally set on the command line.
+        :type skip_init: bool
         """
         final_file = Path(xyz_file)
         initial_file = final_file.with_stem(final_file.stem + "_init")
         symmetry_filename = final_file.with_stem(final_file.stem + "_symmetric")
 
         # Get atoms
-        init_atoms = xyz_reader(initial_file)
+        if not skip_init:
+            init_atoms = xyz_reader(initial_file)
+        else:
+            init_atoms = None
         gen_atoms = xyz_reader(final_file)
         ref_atoms = self._load_dataset_atoms(datamodule.predict_dataset,
                                              datamodule.predict_dataset.convert_to_fractional)
@@ -116,7 +126,8 @@ class OMGTrainer(Trainer):
 
         # Convert to Data
         reference = convert_ase_atoms_to_data(reference)
-        initial = convert_ase_atoms_to_data(initial)
+        if initial is not None:
+            initial = convert_ase_atoms_to_data(initial)
         generated = convert_ase_atoms_to_data(generated)
 
         # List of volumes of all test structures.
@@ -252,30 +263,31 @@ class OMGTrainer(Trainer):
             n_atoms[n_atom] += 1
         assert sum(v for v in n_types.values()) == len(generated.n_atoms)
 
-        traveled_root_mean_square_distances = []
-        assert initial.pos.shape == generated.pos.shape
-        # noinspection PyTypeChecker
-        assert torch.all(initial.ptr == generated.ptr)
-        generated_pos_prime = fractional_coordinates_corrector.unwrap(initial.pos, generated.pos)
-        distances_squared = torch.sum((generated_pos_prime - initial.pos) ** 2, dim=-1)
-        for i in range(len(generated.ptr) - 1):
-            ds = distances_squared[generated.ptr[i]:generated.ptr[i + 1]]
-            traveled_root_mean_square_distances.append(float(torch.sqrt(ds.mean())))
+        if initial is not None:
+            traveled_root_mean_square_distances = []
+            assert initial.pos.shape == generated.pos.shape
+            # noinspection PyTypeChecker
+            assert torch.all(initial.ptr == generated.ptr)
+            generated_pos_prime = fractional_coordinates_corrector.unwrap(initial.pos, generated.pos)
+            distances_squared = torch.sum((generated_pos_prime - initial.pos) ** 2, dim=-1)
+            for i in range(len(generated.ptr) - 1):
+                ds = distances_squared[generated.ptr[i]:generated.ptr[i + 1]]
+                traveled_root_mean_square_distances.append(float(torch.sqrt(ds.mean())))
 
-        root_mean_square_distances = []
-        rand_pos = torch.rand_like(generated.pos)
-        # Cell and species are not important here.
-        rand_data = Data(pos=rand_pos, cell=generated.cell, species=generated.species, ptr=generated.ptr,
-                         n_atoms=generated.n_atoms, batch=generated.batch)
-        if use_min_perm_dist:
-            correct_for_minimum_permutation_distance(rand_data, generated, fractional_coordinates_corrector,
-                                                     switch_species=False)
-            rand_pos = rand_data.pos
-        rand_pos_prime = fractional_coordinates_corrector.unwrap(generated.pos, rand_pos)
-        distances_squared = torch.sum((rand_pos_prime - generated.pos) ** 2, dim=-1)
-        for i in range(len(generated.ptr) - 1):
-            ds = distances_squared[generated.ptr[i]:generated.ptr[i + 1]]
-            root_mean_square_distances.append(float(torch.sqrt(ds.mean())))
+            root_mean_square_distances = []
+            rand_pos = torch.rand_like(generated.pos)
+            # Cell and species are not important here.
+            rand_data = Data(pos=rand_pos, cell=generated.cell, species=generated.species, ptr=generated.ptr,
+                             n_atoms=generated.n_atoms, batch=generated.batch)
+            if use_min_perm_dist:
+                correct_for_minimum_permutation_distance(rand_data, generated, fractional_coordinates_corrector,
+                                                         switch_species=False)
+                rand_pos = rand_data.pos
+            rand_pos_prime = fractional_coordinates_corrector.unwrap(generated.pos, rand_pos)
+            distances_squared = torch.sum((rand_pos_prime - generated.pos) ** 2, dim=-1)
+            for i in range(len(generated.ptr) - 1):
+                ds = distances_squared[generated.ptr[i]:generated.ptr[i + 1]]
+                root_mean_square_distances.append(float(torch.sqrt(ds.mean())))
 
         sg_fail = 0
         sg_fail_F = 0
@@ -411,38 +423,39 @@ class OMGTrainer(Trainer):
             pdf.savefig()
             plt.close()
 
-            # Compute distributions for fractional coordinate movement.
-            # Scott's rule for bandwidth.
-            bandwidth = np.std(ref_root_mean_square_distances) * len(ref_root_mean_square_distances) ** (-1 / 5)
-            ref_rmsds = np.array(ref_root_mean_square_distances)[:, np.newaxis]
-            rmsds = np.array(root_mean_square_distances)[:, np.newaxis]
-            trmsds = np.array(traveled_root_mean_square_distances)[:, np.newaxis]
-            rand_rmsds = np.array(rand_root_mean_square_distances)[:, np.newaxis]
-            x_d = np.linspace(0.0, (3 * 0.5 * 0.5) ** 0.5, 1000)[:, np.newaxis]
-            kde_gt = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(ref_rmsds)
-            log_density_gt = kde_gt.score_samples(x_d)
-            kde_gen = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(rmsds)
-            log_density_gen = kde_gen.score_samples(x_d)
-            kde_traveled = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(trmsds)
-            log_density_traveled = kde_traveled.score_samples(x_d)
-            kde_rand = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(rand_rmsds)
-            log_density_rand = kde_rand.score_samples(x_d)
-            plt.plot(x_d, np.exp(log_density_gen), color="blueviolet", label="Generated")
-            plt.plot(x_d, np.exp(log_density_gt), color="darkslategrey", label="Test")
-            plt.plot(x_d, np.exp(log_density_traveled), color="cadetblue", label="Traveled")
-            plt.plot(x_d, np.exp(log_density_rand), color="steelblue", label="Random")
-            plt.xlabel("Root Mean Square Distance of Fractional Coordinates")
-            plt.ylabel("Density")
-            plt.legend()
-            # plt.text(
-            #    0.05, 0.95,
-            #    f'KS Test for identical distributions: p-value={kstest(trmsds, trmsds).pvalue}',
-            #    verticalalignment='top',
-            #    bbox=props,
-            #    transform=plt.gca().transAxes
-            # )
-            pdf.savefig()
-            plt.close()
+            if initial is not None:
+                # Compute distributions for fractional coordinate movement.
+                # Scott's rule for bandwidth.
+                bandwidth = np.std(ref_root_mean_square_distances) * len(ref_root_mean_square_distances) ** (-1 / 5)
+                ref_rmsds = np.array(ref_root_mean_square_distances)[:, np.newaxis]
+                rmsds = np.array(root_mean_square_distances)[:, np.newaxis]
+                trmsds = np.array(traveled_root_mean_square_distances)[:, np.newaxis]
+                rand_rmsds = np.array(rand_root_mean_square_distances)[:, np.newaxis]
+                x_d = np.linspace(0.0, (3 * 0.5 * 0.5) ** 0.5, 1000)[:, np.newaxis]
+                kde_gt = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(ref_rmsds)
+                log_density_gt = kde_gt.score_samples(x_d)
+                kde_gen = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(rmsds)
+                log_density_gen = kde_gen.score_samples(x_d)
+                kde_traveled = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(trmsds)
+                log_density_traveled = kde_traveled.score_samples(x_d)
+                kde_rand = KernelDensity(kernel='tophat', bandwidth=bandwidth).fit(rand_rmsds)
+                log_density_rand = kde_rand.score_samples(x_d)
+                plt.plot(x_d, np.exp(log_density_gen), color="blueviolet", label="Generated")
+                plt.plot(x_d, np.exp(log_density_gt), color="darkslategrey", label="Test")
+                plt.plot(x_d, np.exp(log_density_traveled), color="cadetblue", label="Traveled")
+                plt.plot(x_d, np.exp(log_density_rand), color="steelblue", label="Random")
+                plt.xlabel("Root Mean Square Distance of Fractional Coordinates")
+                plt.ylabel("Density")
+                plt.legend()
+                # plt.text(
+                #    0.05, 0.95,
+                #    f'KS Test for identical distributions: p-value={kstest(trmsds, trmsds).pvalue}',
+                #    verticalalignment='top',
+                #    bbox=props,
+                #    transform=plt.gca().transAxes
+                # )
+                pdf.savefig()
+                plt.close()
 
             # Compute distributions of structures by average coordination number
             # Plot avg cn KDE
