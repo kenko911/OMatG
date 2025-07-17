@@ -213,15 +213,41 @@ class PeriodicTrigonometricInterpolant(TrigonometricInterpolant):
 
 class EncoderDecoderInterpolant(Interpolant):
     """
-    Encoder-decoder interpolant I(t, x_0, x_1) = cos^2(pi * t) * 1_[0, 0.5) * x_0 + cos^2(pi * t) * 1_(0.5, 1] * x_1
+    Encoder-decoder interpolant
+    I(t, x_0, x_1) = cos^2(pi * (t - switch_time * t)^p / ((switch_time - switch_time * t)^p + (t - switch_time * t)^p)) * 1_[0, switch_time) * x_0
+                   + cos^2(pi * (t - switch_time * t)^p / ((switch_time - switch_time * t)^p + (t - switch_time * t)^p)) * 1_(1-switch_time, 1] * x_1
     between points x_0 and x_1 from two distributions p_0 and p_1 at times t.
+
+    For p=1 and switch_time=0.5, this interpolant becomes
+    I(t, x_0, x_1) = cos^2(pi * t) * 1_[0, switch_time) * x_0 + cos^2(pi * t) * 1_(1-switch_time, 1] * x_1,
+    which was considered in the stochastic interpolants paper.
+
+    Note that the time derivatives are only bounded for p>=0.5.
+
+    :param switch_time:
+        Time in (0, 1) at which to switch from x_0 to x_1.
+        Defaults to 0.5.
+    :type switch_time: float
+    :param power:
+        Power p in the interpolant.
+        Defaults to 1.0.
+    :type power: float
+
+    :raises ValueError:
+        If switch_time is not in (0,1) or power is less than 0.5.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, switch_time: float = 0.5, power: float = 1.0) -> None:
         """
         Construct encoder-decoder interpolant.
         """
         super().__init__()
+        if switch_time <= 0.0 or switch_time >= 1.0:
+            raise ValueError("Switch time must be in (0,1).")
+        if power < 0.5:
+            raise ValueError("Power must be at least 0.5.")
+        self._switch_time = switch_time
+        self._power = power
 
     def alpha(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -235,7 +261,9 @@ class EncoderDecoderInterpolant(Interpolant):
             Values of the alpha function at the given times.
         :rtype: torch.Tensor
         """
-        return torch.where(t <= 0.5, torch.cos(torch.pi * t) ** 2, 0.0)
+        a = (t - self._switch_time * t) ** self._power
+        b = (self._switch_time - self._switch_time * t) ** self._power + a
+        return torch.where(t <= self._switch_time, torch.cos(torch.pi * a / b) ** 2, 0.0)
 
     def alpha_dot(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -249,7 +277,17 @@ class EncoderDecoderInterpolant(Interpolant):
             Derivatives of the alpha function at the given times.
         :rtype: torch.Tensor
         """
-        return torch.where(t <= 0.5, -2.0 * torch.cos(torch.pi * t) * torch.pi * torch.sin(torch.pi * t), 0.0)
+        # In principle, one should be careful with floating point precision here as t->0 and t->1, especially for
+        # self._power=1/2. However, time does not get arbitrarily close to 0 or 1 in practice. We assert this here so
+        # this gets updated if omg.globals.SMALL_TIME or omg.globals.BIG_TIME change.
+        assert torch.all((1.0e-3 <= t) & (t <= 1.0 - 1.0e-3))
+        a = (t - self._switch_time * t) ** self._power
+        b = (self._switch_time - self._switch_time * t) ** self._power
+        c = torch.sin(2.0 * torch.pi * a / (a + b))
+        return torch.where(
+            t <= self._switch_time,
+            self._power * torch.pi * a * b * c / (t * (t - 1.0) * ((a + b) ** 2)),
+            0.0)
 
     def beta(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -263,7 +301,9 @@ class EncoderDecoderInterpolant(Interpolant):
             Values of the beta function at the given times.
         :rtype: torch.Tensor
         """
-        return torch.where(t > 0.5, torch.cos(torch.pi * t) ** 2, 0)
+        a = (t - self._switch_time * t) ** self._power
+        b = (self._switch_time - self._switch_time * t) ** self._power + a
+        return torch.where(t > self._switch_time, torch.cos(torch.pi * a / b) ** 2, 0.0)
 
     def beta_dot(self, t: torch.Tensor) -> torch.Tensor:
         """
@@ -277,7 +317,17 @@ class EncoderDecoderInterpolant(Interpolant):
             Derivatives of the beta function at the given times.
         :rtype: torch.Tensor
         """
-        return torch.where(t > 0.5, -2.0 * torch.cos(torch.pi * t) * torch.pi * torch.sin(torch.pi * t), 0.0)
+        # In principle, one should be careful with floating point precision here as t->0 and t->1, especially for
+        # self._power=1/2. However, time does not get arbitrarily close to 0 or 1 in practice. We assert this here so
+        # this gets updated if omg.globals.SMALL_TIME or omg.globals.BIG_TIME change.
+        assert torch.all((1.0e-3 <= t) & (t <= 1.0 - 1.0e-3))
+        a = (t - self._switch_time * t) ** self._power
+        b = (self._switch_time - self._switch_time * t) ** self._power
+        c = torch.sin(2.0 * torch.pi * a / (a + b))
+        return torch.where(
+            t > self._switch_time,
+            self._power * torch.pi * a * b * c / (t * (t - 1.0) * ((a + b) ** 2)),
+            0.0)
 
     def get_corrector(self) -> Corrector:
         """
@@ -292,16 +342,36 @@ class EncoderDecoderInterpolant(Interpolant):
 
 class PeriodicEncoderDecoderInterpolant(EncoderDecoderInterpolant):
     """
-    Encoder-decoder interpolant I(t, x_0, x_1) = cos^2(pi * t) * 1_[0, 0.5) * x_0 + cos^2(pi * t) * 1_(0.5, 1] * x_1
+    Encoder-decoder interpolant
+    I(t, x_0, x_1) = cos^2(pi * (t - switch_time * t)^p / ((switch_time - switch_time * t)^p + (t - switch_time * t)^p)) * 1_[0, switch_time) * x_0
+                   + cos^2(pi * (t - switch_time * t)^p / ((switch_time - switch_time * t)^p + (t - switch_time * t)^p)) * 1_(1-switch_time, 1] * x_1
     between points x_0 and x_1 from two distributions p_0 and p_1 at times t with periodic boundary conditions. The
     coordinates are assumed to be in [0,1].
+
+    For p=1 and switch_time=0.5, this interpolant becomes
+    I(t, x_0, x_1) = cos^2(pi * t) * 1_[0, switch_time) * x_0 + cos^2(pi * t) * 1_(1-switch_time, 1] * x_1,
+    which was considered in the stochastic interpolants paper.
+
+    Note that the time derivatives are only bounded for p>=0.5.
+
+    :param switch_time:
+        Time in (0, 1) at which to switch from x_0 to x_1.
+        Defaults to 0.5.
+    :type switch_time: float
+    :param power:
+        Power p in the interpolant.
+        Defaults to 1.0.
+    :type power: float
+
+    :raises ValueError:
+        If switch_time is not in (0,1) or power is less than 0.5.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, switch_time: float = 0.5, power: float = 1.0) -> None:
         """
         Construct periodic encoder-decoder interpolant.
         """
-        super().__init__()
+        super().__init__(switch_time=switch_time, power=power)
         self._corrector = PeriodicBoundaryConditionsCorrector(min_value=0.0, max_value=1.0)
 
     def get_corrector(self) -> Corrector:
