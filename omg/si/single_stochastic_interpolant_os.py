@@ -227,12 +227,11 @@ class SingleStochasticInterpolantOS(StochasticInterpolant):
         assert torch.equal(x_0, z)
         if self._predict_velocity:
             if self._use_antithetic:
-                neg_x_0 = self._corrector.correct(-x_0)
                 x_t_p = self._interpolant.interpolate(t, x_0, x_1)
                 assert torch.equal(x_t, x_t_p)
-                x_t_m = self._interpolant.interpolate(t, neg_x_0, x_1)
+                x_t_m = self._interpolant.interpolate(t, -x_0, x_1)
                 expected_velocity_p = self._interpolant.interpolate_derivative(t, x_0, x_1)
-                expected_velocity_m = self._interpolant.interpolate_derivative(t, neg_x_0, x_1)
+                expected_velocity_m = self._interpolant.interpolate_derivative(t, -x_0, x_1)
                 if self._correct_center_of_mass_motion:
                     # scatter_mean is used to compute the mean velocity for every configuration.
                     # index_select is used to replicate the mean velocity for every atom in the configuration.
@@ -310,12 +309,11 @@ class SingleStochasticInterpolantOS(StochasticInterpolant):
 
         if self._predict_velocity:
             if self._use_antithetic:
-                neg_x_0 = self._corrector.correct(-x_0)
                 x_t_p = self._interpolant.interpolate(t, x_0, x_1)
                 assert torch.equal(x_t, x_t_p)
-                x_t_m = self._interpolant.interpolate(t, neg_x_0, x_1)
+                x_t_m = self._interpolant.interpolate(t, -x_0, x_1)
                 expected_velocity_p = self._interpolant.interpolate_derivative(t, x_0, x_1)
-                expected_velocity_m = self._interpolant.interpolate_derivative(t, neg_x_0, x_1)
+                expected_velocity_m = self._interpolant.interpolate_derivative(t, -x_0, x_1)
                 if self._correct_center_of_mass_motion:
                     # scatter_mean is used to compute the mean velocity for every configuration.
                     # index_select is used to replicate the mean velocity for every atom in the configuration.

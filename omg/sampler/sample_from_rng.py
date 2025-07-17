@@ -93,8 +93,8 @@ class SampleFromRNG(Sampler):
                 assert x1 is not None
                 pos = self.distribution[1](x1.pos[x1.ptr[i]:x1.ptr[i+1]])
             else:
+                # Don't wrap back positions explicitly, this should be done by the interpolants.
                 pos = self.distribution[1](size=(n[i].item(), 3))
-                pos = pos - np.floor(pos) # wrap to [0,1) fractional coordinates
 
             # TODO: maybe we don't need to restrict to symmetric->At least we aren't doing so for p1
             # TODO: make more generic in the future
