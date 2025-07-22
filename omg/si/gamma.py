@@ -72,6 +72,7 @@ class LatentGammaEncoderDecoder(LatentGamma):
 
     :param a:
         Constant a > 0.
+        Defaults to 1.0.
     :type a: float
     :param switch_time:
         Time in (0, 1) at which to switch from x_0 to x_1.
@@ -86,7 +87,7 @@ class LatentGammaEncoderDecoder(LatentGamma):
         If switch_time is not in (0,1), power is less than 0.5, or a is smaller than or equal to zero.
     """
 
-    def __init__(self, a: float, switch_time: float = 0.5, power: float = 1.0) -> None:
+    def __init__(self, a: float = 1.0, switch_time: float = 0.5, power: float = 1.0) -> None:
         """Construct gamma function."""
         super().__init__()
         if a <= 0.0:
