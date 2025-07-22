@@ -567,11 +567,11 @@ class OMGTrainer(Trainer):
             pdf.savefig()
             plt.close()
 
-    def match(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str, skip_validation: bool = False,
-              skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5, angle_tol: float = 10.0,
-              number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
-              xyz_file_prediction_data: Optional[str] = None, check_reduced: bool = True,
-              result_name: str = "match.json", plot_name: str = "rmsds.pdf") -> None:
+    def csp_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str, skip_validation: bool = False,
+                    skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5, angle_tol: float = 10.0,
+                    number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
+                    xyz_file_prediction_data: Optional[str] = None, check_reduced: bool = True,
+                    result_name: str = "match.json", plot_name: str = "rmsds.pdf") -> None:
         """
         Compute the match rate between the generated structures and the structures in the prediction dataset.
 

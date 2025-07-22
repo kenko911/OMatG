@@ -107,7 +107,7 @@ Run the following command to compute the match rate between the generated struct
 in the prediction dataset, as well as the rate of unique structures in the generated structures:
 
 ```bash
-omg match --config {config_file} --xyz_file {xyz_file}
+omg csp_metrics --config {config_file} --xyz_file {xyz_file}
 ```
 
 Computing the match rate as in DiffCSP or FlowMM requires to validate every structure which is quite slow. Also, 

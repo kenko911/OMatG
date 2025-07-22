@@ -11,8 +11,8 @@ class OMGCLI(LightningCLI):
         """Defines the list of available subcommands and the arguments to skip."""
         d = LightningCLI.subcommands()
         d["visualize"] = {"model", "datamodule"}
-        d["match"] = {"model", "datamodule"}
-        d["dng_eval"] = {"model", "datamodule"}
+        d["csp_metrics"] = {"model", "datamodule"}
+        d["dng_metrics"] = {"model", "datamodule"}
         d["fit_lattice"] = {"model", "datamodule"}
         return d
 
