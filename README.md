@@ -63,7 +63,7 @@ is also available on [Kaggle](https://www.kaggle.com/code/philipphoellmer/genera
 (with solutions [here](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion-sols)).
 
 <details>
-<summary>Expand this section for a short introduction to the theoretical background of OMatG.</summary>
+<summary><b>Expand this section for a brief introduction to the theoretical background of OMatG.</b></summary>
 
 ### Theoretical Background
 
@@ -106,7 +106,7 @@ are treated with [discrete flow matching](https://arxiv.org/abs/2402.04997).
 </details>
 
 <details>
-<summary>Expand this section for some hints on how to set up new configuration files.</summary>
+<summary><b>Expand this section for tips on how to set up new configuration files.</b></summary>
 
 ### Configuration Files
 
