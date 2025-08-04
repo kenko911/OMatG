@@ -346,12 +346,11 @@ The `model` section specifies the model architecture. In the above example, we j
 ## Installation
 
 Install the dependencies (see [pyproject.toml](pyproject.toml)) and the `omg` package itself by running 
-`pip install .` within the base directory of this repository. You can use any Python version between 3.10 and 3.13. 
-If the code in this repository changes, this command has to be executed again to also change the code of the installed 
-package.
+`pip install .` or `pip install -e .` for editable mode (recommended for developers) within the base directory 
+of this repository. You can use any Python version between 3.10 and 3.13. 
 
-To install `omg` in editable mode (recommended for developers), use `pip install -e .` within the base directory of 
-this repository once. Any changes in code are directly available in the installed `omg` package. 
+If the code in this repository changes, for standard installation the command has to be executed again to also 
+change the code of the installed package; for editable mode any changes in code are directly available in the installed omg package.
 
 > **NOTE**: Installing PyTorch 2.7 based on the correct compute platform as described on the 
 > [PyTorch webpage](https://pytorch.org/get-started/locally/) before installing `omatg` can help minimize sources of 
