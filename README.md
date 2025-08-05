@@ -371,9 +371,11 @@ For convenience, we include several material datasets that can be used for train
   structure.
 - *Perov-5*: A [perovskite dataset](https://pubs.rsc.org/en/content/articlelanding/2012/ee/c2ee22341d) containing 18,928 structures each with five atoms per structure.
 - *Carbon-24*: A [dataset](https://arxiv.org/abs/2110.06197) of 10,153 structures consisting only of carbon with up to 24 atoms per structure. 
-- *Alex-MP-20*: A [consolidated dataset](https://www.nature.com/articles/s41586-025-08628-5) of 675,204 structures of [*Alexandria*](https://arxiv.org/abs/2210.00579) and [*MP-20*](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) 
-  structures. The *Alex-MP-20* dataset is too large to be stored in this repository. We have made it available via the 
-  [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
+- *Alex-MP-20*: New split of a [consolidated dataset](https://www.nature.com/articles/s41586-025-08628-5) of 675,204 
+  structures of [*Alexandria*](https://arxiv.org/abs/2210.00579) and [*MP-20*](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) 
+  structures. In comparison to [MatterGen's](https://github.com/microsoft/mattergen) dataset, we removed 10% of the 
+  training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
+  made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
 ## Training
 
