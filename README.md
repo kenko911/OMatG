@@ -346,14 +346,15 @@ The `model` section specifies the model architecture. In the above example, we j
 ## Installation
 
 Install the dependencies (see [pyproject.toml](pyproject.toml)) and the `omg` package itself by running 
-`pip install .` or `pip install -e .` for editable mode (recommended for developers) within the base directory 
-of this repository. You can use any Python version between 3.10 and 3.13. 
+`pip install .` within the base directory of this repository. For editable mode (recommended for developers), use 
+`pip install -e .` instead. You can use any Python version between 3.10 and 3.13. 
 
-If the code in this repository changes, for standard installation the command has to be executed again to also 
-change the code of the installed package; for editable mode any changes in code are directly available in the installed omg package.
+If the code in this repository changes, the command `pip install .` has to be executed again to also 
+change the code of the installed package. If you installed `omg` in editable mode, any changes in code are directly 
+available in the installed `omg` package.
 
 > **NOTE**: Installing PyTorch 2.7 based on the correct compute platform as described on the 
-> [PyTorch webpage](https://pytorch.org/get-started/locally/) before installing `omatg` can help minimize sources of 
+> [PyTorch webpage](https://pytorch.org/get-started/locally/) before installing `omg` can help minimize sources of 
 > installation errors. The same applies to 
 > [PyG 2.6](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) and 
 > [PyTorch Scatter 2.1](https://github.com/rusty1s/pytorch_scatter?tab=readme-ov-file).
@@ -440,7 +441,7 @@ based on volume, structure, composition, and fingerprint checks (see [`ValidAtom
 and calculates the match rate between the valid generated structures and the valid structures in the prediction dataset. 
 The (slow) validation can be skipped by using `skip_validation=True`.
 
-The validations, and the matchings are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
+The validations and matchings are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
 be changed by setting the `--number_cpus` argument (which is probably most useful in cluster environments).
 
 Further arguments are documented in the `csp_metrics` method in the [`OMGTrainer`](omg/omg_trainer.py) class.
@@ -460,6 +461,8 @@ precision. By default, these metrics are stored in the `dng_metrics.json` file.
 
 The validations are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
 be changed by setting the `--number_cpus` argument (which is probably most useful in cluster environments).
+
+Stability related metrics can be, for example, computed with the [MatterGen codebase](https://github.com/microsoft/mattergen). 
 
 ## Citing OMatG
 
