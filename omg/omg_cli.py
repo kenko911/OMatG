@@ -1,16 +1,30 @@
 from typing import Dict, Set
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
-from . import __version__
 
 
 class OMGCLI(LightningCLI):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs,
-                         parser_kwargs={"description": f"Open Materials Generation (OMatG) Version {__version__}"})
+    """
+    Command line interface for Open Materials Generation (OMatG).
+
+    Extends the LightningCLI class to add subcommands and argument linking specific to OMatG.
+
+    Any initialization args and kwargs are passed down to the LightningCLI constructor.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Constructor of the OMGCLI class."""
+        super().__init__(*args, **kwargs)
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:
-        """Defines the list of available subcommands and the arguments to skip."""
+        """
+        Defines additional available subcommands (see corresponding methods in the OMGTrainer class) and the
+        arguments to skip.
+
+        :return:
+            A dictionary where keys are subcommand names and values are sets of argument names that should be skipped.
+        :rtype: Dict[str, Set[str]]
+        """
         d = LightningCLI.subcommands()
         d["visualize"] = {"model", "datamodule"}
         d["csp_metrics"] = {"model", "datamodule"}
