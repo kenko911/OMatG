@@ -464,7 +464,7 @@ precision. By default, these metrics are stored in the `dng_metrics.json` file.
 The validations are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
 be changed by setting the `--number_cpus` argument (which is probably most useful in cluster environments).
 
-Stability related metrics can be, for example, computed with the [MatterGen codebase](https://github.com/microsoft/mattergen). 
+Stability related metrics can be computed, for example, with the [MatterGen codebase](https://github.com/microsoft/mattergen). 
 
 ## Citing OMatG
 
