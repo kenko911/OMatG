@@ -1,10 +1,12 @@
 from typing import Dict, Set
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
+from . import __version__
 
 
 class OMGCLI(LightningCLI):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs,
+                         parser_kwargs={"description": f"Open Materials Generation (OMatG) Version {__version__}"})
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:
