@@ -905,27 +905,27 @@ class OMGTrainer(Trainer):
         print("Wasserstein distance metrics:")
         gen_densities = [struc.structure.density for struc in gen_valid_atoms]
         ref_densities = [struc.structure.density for struc in ref_valid_atoms]
-        wdist_density = wasserstein_distance(gen_densities, ref_densities)
+        wdist_density = float(wasserstein_distance(gen_densities, ref_densities))
         print(f"{wdist_density=}")
 
         gen_volume_fractions = [get_volume_frac(struc.structure) for struc in gen_valid_atoms]
         ref_volume_fractions = [get_volume_frac(struc.structure) for struc in ref_valid_atoms]
-        wdist_vol_frac = wasserstein_distance(gen_volume_fractions, ref_volume_fractions)
+        wdist_vol_frac = float(wasserstein_distance(gen_volume_fractions, ref_volume_fractions))
         print(f"{wdist_vol_frac=}")
 
         gen_number_atoms = [len(struc.structure.species) for struc in gen_valid_atoms]
         ref_number_atoms = [len(struc.structure.species) for struc in ref_valid_atoms]
-        wdist_number_atoms = wasserstein_distance(gen_number_atoms, ref_number_atoms)
+        wdist_number_atoms = float(wasserstein_distance(gen_number_atoms, ref_number_atoms))
         print(f"{wdist_number_atoms=}")
 
         gen_narity = [len(set(struc.structure.species)) for struc in gen_valid_atoms]
         ref_narity = [len(set(struc.structure.species)) for struc in ref_valid_atoms]
-        wdist_narity = wasserstein_distance(gen_narity, ref_narity)
+        wdist_narity = float(wasserstein_distance(gen_narity, ref_narity))
         print(f"{wdist_narity=}")
 
         gen_coordination_numbers = [np.mean(get_coordination_numbers(struc.atoms)) for struc in gen_valid_atoms]
         ref_coordination_numbers = [np.mean(get_coordination_numbers(struc.atoms)) for struc in ref_valid_atoms]
-        wdist_coordination_numbers = wasserstein_distance(gen_coordination_numbers, ref_coordination_numbers)
+        wdist_coordination_numbers = float(wasserstein_distance(gen_coordination_numbers, ref_coordination_numbers))
         print(f"{wdist_coordination_numbers=}")
         print()
 
@@ -940,6 +940,8 @@ class OMGTrainer(Trainer):
             struc_cutoff = COV_Cutoffs[dataset_name]["struc"]
             comp_cutoff = COV_Cutoffs[dataset_name]["comp"]
             cov_recall, cov_precision = get_cov(gen_valid_atoms, ref_valid_atoms, struc_cutoff, comp_cutoff, None)
+            cov_recall = float(cov_recall)
+            cov_precision = float(cov_precision)
             print(f"Coverage metrics for {dataset_name}:")
             print(f"{cov_recall=}")
             print(f"{cov_precision=}")
