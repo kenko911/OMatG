@@ -788,7 +788,7 @@ class OMGTrainer(Trainer):
                     "match_rate": match_rate,
                     "mean_rmsd": mean_rmsd,
                     "valid_match_rate": valid_match_rate,
-                    "mean_valid_rmsd": mean_valid_rmsd
+                    "valid_mean_rmsd": mean_valid_rmsd
                 }, f, indent=4)
 
             plt.figure()
