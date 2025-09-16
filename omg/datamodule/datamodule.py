@@ -1233,8 +1233,9 @@ class OverfittingDataModule(DataModule):
 
     Can be used to overfit the model to a single configuration.
     """
-    def __init__(self, lmdb_paths=None, property_keys=None, structure_index: int = 0) -> None:
-        super().__init__(lmdb_paths=lmdb_paths, property_keys=property_keys)
+    def __init__(self, lmdb_paths=None, property_keys=None, structure_index: int = 0,
+                 trainer_precision: Union[int, str, None] = "64-true") -> None:
+        super().__init__(lmdb_paths=lmdb_paths, property_keys=property_keys, trainer_precision=trainer_precision)
         if not 0 <= structure_index < len(self):
             raise DataModuleError(f"Invalid structure index {structure_index}, "
                                       f"possible values are 0 to {len(self) - 1}.")
