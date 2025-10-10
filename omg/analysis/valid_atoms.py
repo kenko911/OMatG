@@ -246,7 +246,8 @@ class ValidAtoms(object):
         """
         if upper_narity_limit is not None and len(composition) > upper_narity_limit:
             return False
-        return smact_validity(composition, use_pauling_test=use_pauling_test, include_alloys=include_alloys)
+        return smact_validity(composition, use_pauling_test=use_pauling_test, include_alloys=include_alloys,
+                              oxidation_states_set="icsd24")
 
     @staticmethod
     def _get_fingerprints(composition: Composition, structure: Structure) -> Tuple[List[float], List[float]]:
