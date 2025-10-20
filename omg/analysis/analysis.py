@@ -668,3 +668,126 @@ def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms]
                  for r, atoms, ref_atoms in zip(res, atoms_list, ref_list)]
 
     return res, valid_res
+
+def match_rate_and_rmsd_corr(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms], ltol: float = 0.2,
+                stol: float = 0.3, angle_tol: float = 5.0, number_cpus: Optional[int] = None,
+                check_reduced: bool = True,
+                enable_progress_bar: bool = True) -> Tuple[float, float, float, float, List[Optional[float]], List[Optional[float]], float, float]:
+    """
+    Compute the rate of structures in the first sequence of atoms matching the structure at **any** index in the second
+    sequence of atoms, and the mean root-mean-square displacement between the closest appearing structures.
+
+    Penalize non-matching structures for corr_rmsd, by using stol as the rmsd when structures do not match.
+
+    The averaged root-mean-square displacements are normalized by (volume / number_sites) ** (1/3).
+
+    This method uses pymatgen's StructureMatcher to compare the structures (see
+    https://pymatgen.org/pymatgen.analysis.html).
+
+    Before comparing two structures, this function first checks whether the two structures are of the same composition.
+    If the two compositions do not match, the structures do not match. If check_reduced is True, structures are checked
+    even if they are simple multiples of each other.
+
+    This function returns two types of match rates and mean root-mean-square displacements. One for all structures
+    (first two return values) and one only considering valid structures (last two return values). The validity of
+    structures is determined by the ValidAtoms class. The second way is chosen by DiffCSP and FlowMM although even
+    structures in the mp_20 dataset are not always valid.
+
+    :param atoms_list:
+        First sequence of ase.Atoms instances.
+    :type atoms_list: Sequence[ValidAtoms]
+    :param ref_list:
+        Second sequence of ase.Atoms instances.
+    :type ref_list: Sequence[ValidAtoms]
+    :param ltol:
+        Fractional length tolerance for pymatgen's StructureMatcher.
+        Defaults to 0.2 (pymatgen's default).
+    :type ltol: float
+    :param stol:
+        Site tolerance for pymatgen's StructureMatcher.
+        Defaults to 0.3 (pymatgen's default).
+    :type stol: float
+    :param angle_tol:
+        Angle tolerance in degrees for pymatgen's StructureMatcher.
+        Defaults to 5.0 (pymatgen's default).
+    :type angle_tol: float
+    :param number_cpus:
+        Number of CPUs to use for multiprocessing. If None, use os.cpu_count().
+        Defaults to None.
+    :type number_cpus: Optional[int]
+    :param check_reduced:
+        If True, structures are checked even if they are simple multiples of each other.
+        Defaults to True.
+    :type check_reduced: bool
+    :param enable_progress_bar:
+        If True, show a progress bar.
+        Defaults to True.
+    :type enable_progress_bar: bool
+
+    :return:
+        The METRe match rate considering all structures, 
+        the standard mean root-mean-square displacement considering all structures,
+        the METRe match rate considering valid structures, 
+        the standard mean root-mean-square displacement considering valid structures,
+        the list of rmsds measured with respect to the reference set,
+        the list of valid rmsds measured with respect to the reference set,
+        the corrected RMSE (cRMSE) associated with all structures,
+        the corrected RMSE (cRMSE) associated with valid structures.
+    :rtype: Tuple[float, float, float, float, List[Optional[float]], List[Optional[float]], float, float]
+
+    :raises ValueError:
+        If the number of CPUs is not None and smaller than 1.
+    """
+
+    if number_cpus is not None and number_cpus < 1:
+        raise ValueError("The number of CPUs must be at least 1.")
+
+    cpu_count = number_cpus if number_cpus is not None else os.cpu_count()
+    
+    # We cannot use lambda functions so we use (partial) global functions instead.
+    match_func = partial(_get_match_and_rmsd_sequence, sequence_atoms_two=ref_list, ltol=ltol, stol=stol,
+                            angle_tol=angle_tol, check_reduced=check_reduced)
+    if cpu_count > 1:
+        res = process_map(match_func, atoms_list, desc="Computing match rate and RMSD",
+                            chunksize=max(min(len(atoms_list) // cpu_count, 100), 1), max_workers=cpu_count,
+                            disable=not enable_progress_bar)
+    else:
+        res = list(map(match_func, atoms_list))
+    assert len(res) == len(atoms_list)
+
+    rmsds_ref = np.full((len(ref_list),), np.nan, dtype=np.float32)
+    valid_rmsds_ref = np.full((len(ref_list),), np.nan, dtype=np.float32)
+    for r, atoms in zip(res, atoms_list):
+        if r is not None:
+            for rmsd, index in r: # index is in ref_list
+                assert rmsd is not None and index is not None
+                if np.isnan(rmsds_ref[index]):
+                    rmsds_ref[index] = rmsd # add if there are no other entries
+                elif rmsd < rmsds_ref[index]:
+                    rmsds_ref[index] = rmsd # update if this is the best match
+                # repeat but if the structures are valid
+                if atoms.valid and ref_list[index].valid:
+                    if np.isnan(valid_rmsds_ref[index]):
+                        valid_rmsds_ref[index] = rmsd
+                    elif rmsd < valid_rmsds_ref[index]:
+                        valid_rmsds_ref[index] = rmsd
+
+    # counting matches and RMSE
+    match_count = len(rmsds_ref[~np.isnan(rmsds_ref)])
+    mean_rmsd = np.mean(rmsds_ref[~np.isnan(rmsds_ref)])
+
+    # counting valid matches and RMSE
+    valid_match_count = len(valid_rmsds_ref[~np.isnan(valid_rmsds_ref)])
+    valid_mean_rmsd = np.mean(valid_rmsds_ref[~np.isnan(valid_rmsds_ref)])
+
+    # counting corrected RMSE in which non-matched structures are penalized
+    metre_crmsd = np.nan_to_num(rmsds_ref, copy=True, nan=stol)
+    corr_rmsd = np.mean(metre_crmsd)
+    metre_crmsd_valid = np.nan_to_num(valid_rmsds_ref, copy=True, nan=stol)
+    valid_corr_rmsd = np.mean(metre_crmsd_valid)
+
+    return (match_count / len(ref_list), float(mean_rmsd),
+            valid_match_count / len(ref_list), float(valid_mean_rmsd),
+            rmsds_ref, valid_rmsds_ref, 
+            float(corr_rmsd),
+            float(valid_corr_rmsd))

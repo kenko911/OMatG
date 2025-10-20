@@ -625,6 +625,7 @@ class OMGTrainer(Trainer):
 
     def csp_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str, skip_validation: bool = False,
                     skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5, angle_tol: float = 10.0,
+                    METRe: bool = True, cRMSE: bool = True,
                     number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
                     xyz_file_prediction_data: Optional[str] = None, check_reduced: bool = True,
                     result_name: str = "csp_metrics.json", plot_name: str = "rmsds.pdf") -> None:
@@ -636,16 +637,32 @@ class OMGTrainer(Trainer):
         rate between the valid generated structures and the valid structures in the prediction dataset. The validation
         can be skipped by setting the `skip_validation` argument to True.
 
-        This method matches structures at the same index in the generated dataset and the prediction dataset.
+        The following metrics are computed:
+
+        match rate: Fraction of matching crystal structures between the generated dataset and the reference dataset.
+        Is either the standard CSP one-to-one match rate or the match-everyone-to-reference (METRe) match rate.
+            If METRe is enabled (default),
+                this method matches each reference structure to the best matching generated structure.
+            If METRe is disabled, 
+                match rate is computed for structures at the same index in the generated dataset and the prediction dataset.
+        root-mean-square error (RMSE): Mean root-mean-square error between matched structures.
+        cRMSE: Mean root-mean-square distance between every generated structure and its best match in the reference dataset.
+               Non-matching structures are penalized by using stol as the rmsd when structures do not match.
 
         Structures are considered to match based on PyMatgen's StructureMatcher (see
         https://pymatgen.org/pymatgen.analysis.html). The default tolerances for the matcher are taken from CDVAE,
         DiffCSP, and FlowMM.
 
-        This method also plots the histogram of the root-mean-square distances between the matched structures.
-
-        The match rate and the average root-mean-square distance is one of the benchmarks for the crystal-structure
+        The match rate and the average root-mean-square error (RMSE) is one of the benchmarks for the crystal-structure
         prediction task used by CDVAE, DiffCSP, and FlowMM.
+
+        The METRe and cRMSE metrics are introduced in: https://arxiv.org/abs/2509.12178.
+        If your dataset contains polymorphs, the METRe flag should be enabled.
+        If your dataset contains duplicate structures, the METRe flag should be disabled.
+        If cRMSE is enabled (default), the corrected RMSE will be computed
+            in which stol is assigned as the RMSE for non-matching structures.
+
+        This method also plots the histogram of the root-mean-square errors between the matched structures.
 
         :param model:
             OMG model (argument required and automatically passed by lightning CLI).
@@ -757,7 +774,7 @@ class OMGTrainer(Trainer):
             print(f"Rate of valid structures in generated dataset: "
                   f"{100 * sum(va.valid for va in gen_valid_atoms) / len(gen_valid_atoms)}%.")
 
-        if not skip_match:
+        if not skip_match and not METRe:
             rmsds, valid_rmsds = match_rmsds(
                 gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
                 check_reduced=check_reduced)
@@ -786,11 +803,59 @@ class OMGTrainer(Trainer):
             with open(result_name, "w") as f:
                 json.dump({
                     "match_rate": match_rate,
-                    "mean_rmsd": mean_rmsd,
+                    "mean_RMSE": mean_rmsd,
                     "valid_match_rate": valid_match_rate,
-                    "valid_mean_rmsd": mean_valid_rmsd
+                    "valid_mean_RMSE": mean_valid_rmsd
                 }, f, indent=4)
 
+        elif not skip_match and METRe:
+            fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rate_and_rmsd_corr(
+                gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
+                check_reduced=check_reduced)
+
+            assert len(rmsds) == len(val_rmsds) == len(gen_valid_atoms)
+
+            print(f"The match everyone to reference (METRe) rate for all generated structures is {100.0 * fmr}%.")
+            print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
+                f"and all generated structures is {frmsd}.")
+            print()
+            print(f"The match everyone to reference (METRe) rate for all valid generated structures is {100.0 * vmr}%.")
+            print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
+                f"and all valid generated structures is {vrmsd}.")
+
+            with open(result_name, "w") as f:
+                json.dump({
+                    "METRe_rate": fmr,
+                    "mean_RMSE": frmsd,
+                    "valid_METRe_rate": vmr,
+                    "valid_mean_RMSE": vrmsd,
+                }, f, indent=4)
+        
+        if cRMSE:
+            if not METRe: # need to compute cRMSE for non-METRe case
+                corr_rmsds = [rmsd if rmsd is not None else stol for rmsd in rmsds]
+                corr_valid_rmsds = [rmsd if rmsd is not None else stol for rmsd in valid_rmsds]
+                corr_rmsd = np.mean(corr_rmsds)
+                vcorr_rmsd = np.mean(corr_valid_rmsds)
+            
+            print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
+                f"with stol={stol} between all generated structures and the full dataset is {corr_rmsd}.")
+            print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
+                f"with stol={stol} between all valid generated structures and the valid dataset is {vcorr_rmsd}.")
+            
+            with open(result_name, "r") as f:
+                data = json.load(f)
+            data.update({
+                "cRMSE": corr_rmsd,
+                "valid_cRMSE": vcorr_rmsd,
+            })
+            with open(result_name, "w") as f:
+                json.dump(data, f, indent=4)
+
+        if not skip_match:
+            if METRe:
+                filtered_rmsds = rmsds[~np.isnan(rmsds)]
+                filtered_valid_rmsds = val_rmsds[~np.isnan(val_rmsds)]
             plt.figure()
             bandwidth = np.std(filtered_rmsds) * len(filtered_rmsds) ** (-1 / 5)  # Scott's rule.
             filtered_rmsds = np.array(filtered_rmsds)[:, np.newaxis]
@@ -803,9 +868,9 @@ class OMGTrainer(Trainer):
             log_density_val = kde_val.score_samples(x_d)
             plt.plot(x_d, np.exp(log_density), color="blueviolet", label="All")
             plt.plot(x_d, np.exp(log_density_val), color="darkslategrey", label="Valid")
-            plt.xlabel(r"RMSD distribution ($\AA^3$)")
+            plt.xlabel(r"RMSE distribution ($\AA^3$)")
             plt.ylabel("Density")
-            plt.title("RMSD")
+            plt.title("RMSE")
             plt.legend()
             plt.savefig(plot_name)
             plt.close()
