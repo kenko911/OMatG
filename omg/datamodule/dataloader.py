@@ -1,16 +1,8 @@
-import copy
-import os
-from typing import Any, Optional
-
-from torch_geometric.data import Data, Dataset
-from torch_geometric.loader import DataLoader
-import torch
 from ase.data import atomic_numbers
-from torch_geometric.data.lightning import LightningDataset
-import lightning as L
-
-from .datamodule import Configuration, DataModule
-from .utils import niggli_reduce_configuration, niggli_reduce_data
+import torch
+from torch_geometric.data import Data, Dataset
+from omg.datamodule.datamodule import Configuration, ConfigurationDataset
+from omg.datamodule.utils import niggli_reduce_configuration, niggli_reduce_data
 
 
 class OMGData(Data):
@@ -142,86 +134,15 @@ class OMGTorchDataset(Dataset):
     the use of :class:`omg.datamodule.Dataset` as a data source for the graph based models.
     """
 
-    def __init__(self, dataset: DataModule, transform=None, convert_to_fractional=True, niggli=False):
-        super().__init__("./", transform, None, None)
+    def __init__(self, dataset: ConfigurationDataset, convert_to_fractional=True, niggli=False):
+        super().__init__()
         self.dataset = dataset
         self.convert_to_fractional = convert_to_fractional
         self.niggli = niggli
 
-    def __len__(self):
-        return len(self.dataset)
-
     def len(self):
         return len(self.dataset)
 
-    def get(self, idx):
+    def get(self, idx: int):
         return OMGData.from_omg_configuration(self.dataset[idx], convert_to_fractional=self.convert_to_fractional,
                                               niggli=self.niggli)
-
-
-def get_lightning_datamodule(train_dataset: Dataset, val_dataset: Dataset, batch_size: int):
-    """
-    Create a PyTorch Lightning datamodule from the datasets. This is just provided for
-    ease of use, and the user can create their own datamodule if needed.
-
-    :param train_dataset: Training dataset
-    :param val_dataset: Validation dataset
-    :param batch_size: Batch size
-
-    """
-    num_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    lightning_datamodule = LightningDataset(train_dataset, val_dataset,
-                                            batch_size=batch_size,
-                                            num_workers=num_workers)
-    return lightning_datamodule
-
-# TODO: Make len be the number of times we run through the generation pipeline
-class NullDataset(Dataset):
-    def __init__(self,):
-        super().__init__()
-
-    def get(self, idx: int) -> int:
-        return idx
-
-    def len(self,):
-        return 1
-
-class OMGDataModule(L.LightningDataModule):
-    """
-    Need to do this because LightningDataset doesn't directly subclass LightningDataModule
-    """
-    def __init__(self, train_dataset: OMGTorchDataset, val_dataset: OMGTorchDataset,
-                 predict_dataset: Optional[OMGTorchDataset] = None, **kwargs) -> None:
-        super().__init__()
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
-        self.predict_dataset = predict_dataset
-        if self.val_dataset is None:
-            self.val_dataloader = None
-        self.batch_size = kwargs.get('batch_size', 1)
-        self.kwargs = kwargs
-
-    def dataloader(self, dataset: Dataset, **kwargs: Any) -> DataLoader:
-        return DataLoader(dataset, **kwargs)
-
-    def train_dataloader(self) -> DataLoader:
-        from torch.utils.data import IterableDataset
-
-        shuffle = not isinstance(self.train_dataset, IterableDataset)
-        shuffle &= self.kwargs.get('sampler', None) is None
-        shuffle &= self.kwargs.get('batch_sampler', None) is None
-
-        return self.dataloader(
-            self.train_dataset,
-            shuffle=shuffle,
-            **self.kwargs,
-        )
-
-    def val_dataloader(self) -> DataLoader:
-        kwargs = copy.copy(self.kwargs)
-        kwargs.pop('sampler', None)
-        kwargs.pop('batch_sampler', None)
-        return self.dataloader(self.val_dataset, shuffle=False, **self.kwargs)
-
-    def predict_dataloader(self) -> DataLoader:
-        return self.dataloader(self.predict_dataset, shuffle=False, **self.kwargs)
