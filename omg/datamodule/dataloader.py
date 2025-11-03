@@ -1,7 +1,7 @@
 from ase.data import atomic_numbers
 import torch
 from torch_geometric.data import Data, Dataset
-from omg.datamodule.datamodule import Configuration, ConfigurationDataset
+from omg.datamodule.datamodule import Structure, StructureDataset
 from omg.datamodule.utils import niggli_reduce_configuration, niggli_reduce_data
 
 
@@ -134,7 +134,7 @@ class OMGTorchDataset(Dataset):
     the use of :class:`omg.datamodule.Dataset` as a data source for the graph based models.
     """
 
-    def __init__(self, dataset: ConfigurationDataset, convert_to_fractional=True, niggli=False):
+    def __init__(self, dataset: StructureDataset, convert_to_fractional=True, niggli=False):
         super().__init__()
         self.dataset = dataset
         self.convert_to_fractional = convert_to_fractional
