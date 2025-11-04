@@ -2,9 +2,12 @@ from importlib.resources import files
 from pathlib import Path
 import pickle
 from typing import Any, Optional, Sequence, Union
+import warnings
 from ase import Atoms
 from ase.io import write
 import lmdb
+import pandas as pd
+from pymatgen.core import Structure as PymatgenStructure, Lattice as PymatgenLattice
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -139,19 +142,24 @@ class Structure(object):
 
 class StructureDataset(Dataset):
     """
-    Dataset for storing a list of crystalline structures.
+    Dataset for reading and storing a list of crystalline structures from several file formats.
 
-    This class provides methods to save the structures in LMDB or xyz format.
+    The supported file formats are LMDB, xyz, and csv. The specific format is inferred from the file extension.
+    The _from_lmdb, _from_xyz, and _from_csv methods are used to read the structures from the respective file formats.
+    They document the expected file formats in more detail.
 
-    :param structures:
-        A sequence of crystalline structures to store in the dataset.
-    :type structures: Sequence[Structure]
+    This class also provides methods to save the structures in LMDB or xyz format.
+
+    :param file_path:
+        Path to the file containing the structures.
+        Supported formats are .lmdb, .xyz, and .csv.
+    :type file_path: str
     :param property_keys:
-        An optional sequence of property keys that are stored within the structures.
+        An optional sequence of property keys that should be read from the file and stored within the structures.
         Defaults to None.
     :type property_keys: Optional[Sequence[str]]
     :param floating_point_precision:
-        Floating point precision to use in the structures. Can be one of "64-true", "64", "32-true", "32",
+        Floating point precision to use for the structures. Can be one of "64-true", "64", "32-true", "32",
         "16-true", "16", "bf16-true", "bf16", "transformer-engine-float16", or "transformer-engine".
         Defaults to "64-true".
     :type floating_point_precision: Union[int, str, None]
@@ -228,14 +236,14 @@ class StructureDataset(Dataset):
     @staticmethod
     def _from_lmdb(existing_lmdb_path: Path, property_keys: Optional[Sequence[str]]) -> list[Structure]:
         """
-        Dataset of crystalline structures that are loaded from an LMDB file.
+        Load crystalline structures from an LMDB file.
 
         Each record (key) in the LMDB file is expected to contain a pickled dictionary with at least the following keys to
         represent a structure with N atoms:
         - "cell": A 3x3 torch.Tensor of the lattice vectors.
                   The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
         - "pos": A Nx3 torch.Tensor of atomic positions.
-        - "atomic_numbers": A list of N integers giving the atomic numbers of the atoms.
+        - "atomic_numbers": A torch tensor of N integers giving the atomic numbers of the atoms.
 
         The metadata of each structure will contain the following keys:
         - "file_path": The path to the LMDB file from which the structure was loaded.
@@ -247,23 +255,22 @@ class StructureDataset(Dataset):
         property_keys parameter. These keys will be read from the LMDB record and stored in the property_dict of the
         structure.
 
-        :param lmdb_path:
+        :param existing_lmdb_path:
             Path to the LMDB file.
-            This can either be an absolute path, a relative path to the current working directory, or a relative path
-            within the omg package.
-        :type lmdb_path: str
+        :type existing_lmdb_path: Path
         :param property_keys:
             An optional sequence of property keys that are read from the LMDB file and stored within the structures.
             Defaults to None.
         :type property_keys: Optional[Sequence[str]]
-        :param floating_point_precision:
-            Floating point precision to use in the structures. Can be one of "64-true", "64", "32-true", "32",
-            "16-true", "16", "bf16-true", "bf16", "transformer-engine-float16", or "transformer-engine".
-            Defaults to "64-true".
-        :type floating_point_precision: Union[int, str, None]
 
-        :raises FileNotFoundError:
-            If the LMDB file does not exist.
+        :return:
+            A list of crystalline structures loaded from the LMDB file.
+        :rtype: list[Structure]
+
+        :raises KeyError:
+            If any of the required keys are missing in the LMDB records.
+        :raises TypeError:
+            If any of the required keys have incorrect types in the LMDB records.
         """
         structures = []
         with (lmdb.Environment(str(existing_lmdb_path), subdir=False, readonly=True, lock=False) as env,
@@ -285,12 +292,13 @@ class StructureDataset(Dataset):
                 if "atomic_numbers" not in lmdb_config:
                     raise KeyError(f"Key {key} in the lmdb file does not contain 'atomic_numbers'.")
                 atomic_numbers = lmdb_config["atomic_numbers"]
-                if not isinstance(lmdb_config["atomic_numbers"], list):
+                if not isinstance(atomic_numbers, torch.Tensor):
                     raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of type {type(atomic_numbers)}, "
-                                    f"expected list[int].")
-                if not all(isinstance(num, int) for num in atomic_numbers):
-                    raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' containing elements of types "
-                                    f"{set(type(num) for num in atomic_numbers)}, expected list[int].")
+                                    f"expected torch.Tensor.")
+                if not atomic_numbers.dtype is torch.int:
+                    raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of dtype {atomic_numbers.dtype}, "
+                                    f"expected torch.int.")
+                atomic_numbers = atomic_numbers.tolist()
 
                 if "pos" not in lmdb_config:
                     raise KeyError(f"Key {key} in the lmdb file does not contain 'pos'.")
@@ -317,6 +325,71 @@ class StructureDataset(Dataset):
                                       metadata=metadata)
 
                 structures.append(structure)
+        return structures
+
+    @staticmethod
+    def _from_csv(existing_csv_path: Path, property_keys: Optional[Sequence[str]]) -> list[Structure]:
+        """
+        Load crystalline structures from a CSV file.
+
+        The CSV file is expected to contain a "cif" column with the CIF representation of the structures. This will be
+        used to infer the cell, atomic numbers, and positions of the structures.
+
+        The metadata of each structure will contain the following keys:
+        - "file_path": The path to the CSV file from which the structure was loaded.
+        - "file_key": The index in the CSV file corresponding to the structure.
+        - "identifier": If a "material_id" column is present in the CSV file, it will be stored here. This is usually a
+                        unique identifier of the structure, e.g., from Materials Project.
+
+        It is possible to read additional property keys from the CSV file into the structures by specifying them in the
+        property_keys parameter. These keys will be read from the CSV file and stored in the property_dict of the
+        structure.
+
+        :param existing_csv_path:
+            Path to the CSV file.
+        :type existing_csv_path: Path
+        :param property_keys:
+            An optional sequence of property keys that are read from the CSV file and stored within the structures.
+            Defaults to None.
+        :type property_keys: Optional[Sequence[str]]
+
+        :return:
+            A list of crystalline structures loaded from the CSV file.
+        :rtype: list[Structure]
+
+        :raises KeyError:
+            If any of the required keys are missing in the CSV records.
+        """
+        csv_structures = pd.read_csv(existing_csv_path)
+        if "cif" not in csv_structures.keys():
+            raise KeyError(f"CSV file does not contain 'cif' column.")
+        if property_keys is not None:
+            for prop in property_keys:
+                if prop not in csv_structures.keys():
+                    raise KeyError(f"CSV file does not contain '{prop}' column.")
+
+        structures = []
+        for structure_index in tqdm(range(len(csv_structures)), desc=f"Loading {existing_csv_path} data"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                pymatgen_structure = PymatgenStructure.from_str(csv_structures["cif"][structure_index], fmt="cif")
+            # TODO: CAREFULLY MAKE SURE THAT ALL THE STRUCTURES ARE MATCHING AND THAT ALL LATTICES AGREE.
+
+            pos = torch.tensor(pymatgen_structure.cart_coords)
+            cell = torch.tensor(pymatgen_structure.lattice.matrix)
+            atomic_numbers = list(pymatgen_structure.atomic_numbers)
+
+            metadata = {"file_path": existing_csv_path, "file_key": structure_index}
+            if "material_id" in csv_structures.keys():
+                metadata["identifier"] = csv_structures["material_id"][structure_index]
+
+            property_dict = {}
+            if property_keys is not None:
+                for prop in property_keys:
+                    property_dict[prop] = torch.tensor(csv_structures[prop][structure_index])
+            structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
+                                  metadata=metadata)
+            structures.append(structure)
         return structures
 
     def to_lmdb(self, lmdb_path: Path) -> None:
@@ -391,193 +464,7 @@ class StructureDataset(Dataset):
         return self._structures[idx]
 
 
-class LmdbDataset(StructureDataset):
-    """
-    Dataset of crystalline structures that are loaded from an LMDB file.
-
-    Each record (key) in the LMDB file is expected to contain a pickled dictionary with at least the following keys to
-    represent a structure with N atoms:
-    - "cell": A 3x3 torch.Tensor of the lattice vectors.
-              The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
-    - "pos": A Nx3 torch.Tensor of atomic positions.
-    - "atomic_numbers": A list of N integers giving the atomic numbers of the atoms.
-
-    The metadata of each structure will contain the following keys:
-    - "file_path": The path to the LMDB file from which the structure was loaded.
-    - "file_key": The key in the LMDB file corresponding to the structure.
-    - "identifier": If "ids" is present in the LMDB record, it will be stored here. This is usually a unique identifier
-        of the structure, e.g., from Materials Project.
-
-    It is possible to read additional property keys from the LMDB file into the structures by specifying them in the
-    property_keys parameter. These keys will be read from the LMDB record and stored in the property_dict of the
-    structure.
-
-    :param lmdb_path:
-        Path to the LMDB file.
-        This can either be an absolute path, a relative path to the current working directory, or a relative path
-        within the omg package.
-    :type lmdb_path: str
-    :param property_keys:
-        An optional sequence of property keys that are read from the LMDB file and stored within the structures.
-        Defaults to None.
-    :type property_keys: Optional[Sequence[str]]
-    :param floating_point_precision:
-        Floating point precision to use in the structures. Can be one of "64-true", "64", "32-true", "32",
-        "16-true", "16", "bf16-true", "bf16", "transformer-engine-float16", or "transformer-engine".
-        Defaults to "64-true".
-    :type floating_point_precision: Union[int, str, None]
-
-    :raises FileNotFoundError:
-        If the LMDB file does not exist.
-    """
-
-    def __init__(self, lmdb_path: str, property_keys: Optional[Sequence[str]] = None,
-                 floating_point_precision: Union[int, str, None] = "64-true") -> None:
-        """Constructor for the LmdbDataset class."""
-        path = Path(lmdb_path)
-
-        if path.exists():
-            existing_lmdb_path = lmdb_path
-        else:
-            # Try to use the data from the omg package.
-            # noinspection PyTypeChecker
-            existing_lmdb_path = Path(files("omg").joinpath(lmdb_path))
-            if not existing_lmdb_path.exists():
-                raise FileNotFoundError(f"LMDB path {lmdb_path} neither exists on its own or within the omg package.")
-
-        structures = []
-        with (lmdb.Environment(str(existing_lmdb_path), subdir=False, readonly=True, lock=False) as env,
-              env.begin() as txn):
-            lmdb_configs = [(key.decode(), pickle.loads(data))
-                            for key, data in tqdm(txn.cursor(), desc=f"Loading {existing_lmdb_path} data",
-                                                  total=txn.stat()["entries"])]
-            for key, lmdb_config in lmdb_configs:
-                if "cell" not in lmdb_config:
-                    raise KeyError(f"Key {key} in the lmdb file does not contain 'cell'.")
-                cell = lmdb_config["cell"]
-                if not isinstance(cell, torch.Tensor):
-                    raise TypeError(f"Key {key} in the lmdb file has 'cell' of type {type(cell)}, "
-                                    f"expected torch.Tensor.")
-                if not torch.is_floating_point(cell):
-                    raise TypeError(f"Key {key} in the lmdb file has 'cell' of dtype {cell.dtype}, "
-                                    f"expected floating point dtype.")
-
-                if "atomic_numbers" not in lmdb_config:
-                    raise KeyError(f"Key {key} in the lmdb file does not contain 'atomic_numbers'.")
-                atomic_numbers = lmdb_config["atomic_numbers"]
-                if not isinstance(lmdb_config["atomic_numbers"], list):
-                    raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of type {type(atomic_numbers)}, "
-                                    f"expected list[int].")
-                if not all(isinstance(num, int) for num in atomic_numbers):
-                    raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' containing elements of types "
-                                    f"{set(type(num) for num in atomic_numbers)}, expected list[int].")
-
-                if "pos" not in lmdb_config:
-                    raise KeyError(f"Key {key} in the lmdb file does not contain 'pos'.")
-                pos = lmdb_config["pos"]
-                if not isinstance(pos, torch.Tensor):
-                    raise TypeError(f"Key {key} in the lmdb file has 'pos' of type {type(pos)}, "
-                                    f"expected torch.Tensor.")
-                if not torch.is_floating_point(pos):
-                    raise TypeError(f"Key {key} in the lmdb file has 'pos' of dtype {pos.dtype}, "
-                                    f"expected floating point dtype.")
-
-                metadata = {"file_path": existing_lmdb_path, "file_key": key}
-                if "ids" in lmdb_config:
-                    metadata["identifier"] = lmdb_config["ids"]
-
-                property_dict = {}
-                if property_keys is not None:
-                    for prop in property_keys:
-                        if prop not in lmdb_config:
-                            raise KeyError(f"Key {key} in the lmdb file does not contain '{prop}'.")
-                        property_dict[prop] = lmdb_config[prop]
-
-                structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
-                                      metadata=metadata)
-
-                structures.append(structure)
-
-        super().__init__(structures=structures, property_keys=property_keys,
-                         floating_point_precision=floating_point_precision)
-
-
-class CsvDataset(ConfigurationDataset):
-    def __init__(self, csv_path: Path, property_keys: Optional[Sequence[str]] = None,
-                 floating_point_precision: Union[int, str, None] = "64-true"):
-        """
-        Read configurations from a CIF file and initialize a dataset.
-
-        Args:
-            cif_path: Path to the CIF file.
-            property_keys: List of property keys to read from the CIF file.
-            floating_point_precision: Floating point precision to use for the properties.
-
-        Returns:
-            A dataset of configurations.
-        """
-        torch_precision = self._get_torch_precision(floating_point_precision)
-
-        if csv_path.exists():
-            existing_csv_path = csv_path
-        else:
-            # Try to use the data from the omg package.
-            existing_csv_path = Path(files("omg").joinpath(csv_path))
-            if not existing_csv_path.exists():
-                raise FileNotFoundError(f"CSV path {csv_path} neither exists on its own or within the omg package.")
-
-        csv_configs = pd.read_csv(existing_csv_path)
-        if "cif" not in csv_configs:
-            raise KeyError(f"CSV file does not contain 'cif' column.")
-        if "material_id" not in csv_configs:
-            raise KeyError(f"CSV file does not contain 'material_id' column.")
-        if property_keys is not None:
-            for prop in property_keys:
-                if prop not in csv_configs:
-                    raise KeyError(f"CSV file does not contain '{prop}' column.")
-
-        configs = []
-        for config_index in tqdm(range(len(csv_configs)), desc=f"Loading {existing_csv_path} data"):
-            #crystal_likely = crystal.get_reduced_structure()
-
-            #crystal_likely = Structure(
-            #  lattice=Lattice.from_parameters(*crystal_likely.lattice.parameters),
-            #    species=crystal_likely.species,
-            #    coords=crystal_likely.frac_coords,
-            #    coords_are_cartesian=False,
-            #)
-
-
-            structure = Structure.from_str(csv_configs["cif"][config_index], fmt="cif", primitive=True)
-            structure = structure.get_reduced_structure()
-            structure = Structure(
-                lattice=Lattice.from_parameters(*structure.lattice.parameters),
-                species=structure.species,
-                coords=structure.frac_coords,
-                coords_are_cartesian=False,
-            )
-            pos = torch.tensor(structure.lattice.get_cartesian_coords(structure.frac_coords), dtype=torch_precision)
-            cell = torch.tensor(structure.lattice.as_dict()["matrix"], dtype=torch_precision)
-            species = [chemical_symbols[int(i)] for i in structure.atomic_numbers]
-            pbc = structure.lattice.pbc
-            ids = csv_configs["material_id"][config_index]
-
-            property_dict = {}
-            if property_keys is not None:
-                for prop in property_keys:
-                    property_dict[prop] = torch.tensor(csv_configs[prop][config_index])
-                    if property_dict[prop].is_floating_point():
-                        property_dict[prop] = property_dict[prop].to(torch_precision)
-            config = Configuration(cell=cell, species=species, pos=pos, pbc=pbc, ids=ids,
-                                   property_dict=property_dict,
-                                   metadata={"file_path": existing_csv_path, "file_key": config_index})
-            configs.append(config)
-        super().__init__(configurations=configs, property_keys=property_keys)
-
-
-
-
-class OverfittingDataset(LmdbDataset):
+class OverfittingDataset(StructureDataset):
     """
     Dataset that always returns the same crystalline structure from an LMDB file.
 
