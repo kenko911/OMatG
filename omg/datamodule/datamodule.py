@@ -194,7 +194,9 @@ class StructureDataset(Dataset):
 
     :param file_path:
         Path to the file containing the structures.
-        Supported formats are .lmdb, .xyz, and .csv.
+        This can either be an absolute path, a relative path to the current working directory, or a relative path within
+        the omg package.
+        Supported formats are .lmdb and .csv.
     :type file_path: str
     :param property_keys:
         An optional sequence of property keys that should be read from the file and stored within the structures.
@@ -232,11 +234,12 @@ class StructureDataset(Dataset):
         self._file_path = existing_file_path
 
         if path.suffix == ".lmdb":
+            # noinspection PyArgumentList
             self._structures = self._from_lmdb(existing_file_path, property_keys, **parser_kwargs)
         elif path.suffix == ".csv":
             self._structures = self._from_csv(existing_file_path, property_keys, **parser_kwargs)
         else:
-            raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb, .xyz, and .csv.")
+            raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb and .csv.")
 
         for structure in self._structures:
             structure.to(self._torch_precision)
@@ -318,13 +321,13 @@ class StructureDataset(Dataset):
         structures = []
         with (lmdb.Environment(str(existing_lmdb_path), subdir=False, readonly=True, lock=False) as env,
               env.begin() as txn):
-            lmdb_configs = [(key.decode(), pickle.loads(data))
-                            for key, data in tqdm(txn.cursor(), desc=f"Loading {existing_lmdb_path} data",
-                                                  total=txn.stat()["entries"])]
-            for key, lmdb_config in lmdb_configs:
-                if "cell" not in lmdb_config:
+            lmdb_structures = [(key.decode(), pickle.loads(data))
+                               for key, data in tqdm(txn.cursor(), desc=f"Loading {existing_lmdb_path} data",
+                                                     total=txn.stat()["entries"])]
+            for key, lmdb_structure in lmdb_structures:
+                if "cell" not in lmdb_structure:
                     raise KeyError(f"Key {key} in the lmdb file does not contain 'cell'.")
-                cell = lmdb_config["cell"]
+                cell = lmdb_structure["cell"]
                 if not isinstance(cell, torch.Tensor):
                     raise TypeError(f"Key {key} in the lmdb file has 'cell' of type {type(cell)}, "
                                     f"expected torch.Tensor.")
@@ -332,9 +335,9 @@ class StructureDataset(Dataset):
                     raise TypeError(f"Key {key} in the lmdb file has 'cell' of dtype {cell.dtype}, "
                                     f"expected floating point dtype.")
 
-                if "atomic_numbers" not in lmdb_config:
+                if "atomic_numbers" not in lmdb_structure:
                     raise KeyError(f"Key {key} in the lmdb file does not contain 'atomic_numbers'.")
-                atomic_numbers = lmdb_config["atomic_numbers"]
+                atomic_numbers = lmdb_structure["atomic_numbers"]
                 if not isinstance(atomic_numbers, torch.Tensor):
                     raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of type {type(atomic_numbers)}, "
                                     f"expected torch.Tensor.")
@@ -343,9 +346,9 @@ class StructureDataset(Dataset):
                                     f"expected torch.int.")
                 atomic_numbers = atomic_numbers.tolist()
 
-                if "pos" not in lmdb_config:
+                if "pos" not in lmdb_structure:
                     raise KeyError(f"Key {key} in the lmdb file does not contain 'pos'.")
-                pos = lmdb_config["pos"]
+                pos = lmdb_structure["pos"]
                 if not isinstance(pos, torch.Tensor):
                     raise TypeError(f"Key {key} in the lmdb file has 'pos' of type {type(pos)}, "
                                     f"expected torch.Tensor.")
@@ -354,15 +357,15 @@ class StructureDataset(Dataset):
                                     f"expected floating point dtype.")
 
                 metadata = {"file_path": existing_lmdb_path, "file_key": key}
-                if "ids" in lmdb_config:
-                    metadata["identifier"] = lmdb_config["ids"]
+                if "ids" in lmdb_structure:
+                    metadata["identifier"] = lmdb_structure["ids"]
 
                 property_dict = {}
                 if property_keys is not None:
                     for prop in property_keys:
-                        if prop not in lmdb_config:
+                        if prop not in lmdb_structure:
                             raise KeyError(f"Key {key} in the lmdb file does not contain '{prop}'.")
-                        property_dict[prop] = lmdb_config[prop]
+                        property_dict[prop] = lmdb_structure[prop]
 
                 structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
                                       metadata=metadata)
@@ -501,8 +504,8 @@ class StructureDataset(Dataset):
 
         with (lmdb.Environment(str(lmdb_path), subdir=False, map_size=int(1e12), lock=False) as env,
               env.begin(write=True) as txn):
-            for idx, structure in tqdm(enumerate(self._structures), desc=f"Saving configurations to {lmdb_path}",
-                                    total=len(self._structures)):
+            for idx, structure in tqdm(enumerate(self._structures), desc=f"Saving structures to {lmdb_path}",
+                                       total=len(self._structures)):
                 data = {
                     "pos": structure.pos,
                     "cell": structure.cell,
@@ -524,7 +527,7 @@ class StructureDataset(Dataset):
         if xyz_path.exists():
             raise FileExistsError(f"XYZ path {xyz_path} already exists.")
         all_atoms = []
-        for struc in tqdm(self._structures, desc=f"Converting configurations to ASE Atoms"):
+        for struc in tqdm(self._structures, desc=f"Converting structures to ASE Atoms"):
             all_atoms.append(struc.get_ase_atoms())
         write(str(xyz_path), all_atoms, format="extxyz")
 
@@ -557,15 +560,16 @@ class StructureDataset(Dataset):
 
 class OverfittingDataset(StructureDataset):
     """
-    Dataset that always returns the same crystalline structure from an LMDB file.
+    Dataset that always returns the same crystalline structure from a file.
 
-    This dataset is useful for overfitting tests. It expects the same LMDB file format as LmdbDataset.
+    This dataset is useful for overfitting tests. It expects the same LMDB or CSV file formats as StructureDataset.
 
-    :param lmdb_path:
-        Path to the LMDB file.
-        This can either be an absolute path, a relative path to the current working directory, or
-        a relative path within the omg package.
-    :type lmdb_path: str
+    :param file_path:
+        Path to the file containing the structures.
+        This can either be an absolute path, a relative path to the current working directory, or a relative path within
+        the omg package.
+        Supported formats are .lmdb and .csv.
+    :type file_path: str
     :param structure_index:
         Index of the structure in the LMDB file to always return.
         Defaults to 0.
@@ -580,16 +584,19 @@ class OverfittingDataset(StructureDataset):
         "16", "bf16-true", "bf16", "transformer-engine-float16", or "transformer-engine".
         Defaults to "64-true".
     :type floating_point_precision: Union[int, str, None]
+    :param parser_kwargs:
+        Additional keyword arguments to pass to the specific file format parser methods.
+    :type parser_kwargs: Any
 
     :raises KeyError:
         If the structure_index is out of bounds.
     """
 
-    def __init__(self, lmdb_path: str, structure_index: int = 0, property_keys: Optional[Sequence[str]] = None,
-                 floating_point_precision: Union[int, str, None] = "64-true") -> None:
+    def __init__(self, file_path: str, structure_index: int = 0, property_keys: Optional[Sequence[str]] = None,
+                 floating_point_precision: Union[int, str, None] = "64-true", **parser_kwargs: Any) -> None:
         """Constructor for the OverfittingDataset class."""
-        super().__init__(lmdb_path=lmdb_path, property_keys=property_keys,
-                         floating_point_precision=floating_point_precision)
+        super().__init__(file_path=file_path, property_keys=property_keys,
+                         floating_point_precision=floating_point_precision, **parser_kwargs)
         if not 0 <= structure_index < len(self):
             raise KeyError(f"Invalid structure index {structure_index}, "
                            f"possible values are 0 to {len(self) - 1}.")
@@ -599,7 +606,7 @@ class OverfittingDataset(StructureDataset):
         """
         Return the structure at the given index.
 
-        This method ignores the given index and always return the same configuration.
+        This method ignores the given index and always returns the same structure.
 
         :param idx:
             Index of the structure to return.
@@ -613,4 +620,39 @@ class OverfittingDataset(StructureDataset):
 
 
 if __name__ == '__main__':
-    dataset = LmdbDataset(lmdb_path="data/mp_20/test.lmdb")
+    dataset_csv = StructureDataset(file_path="data/mp_20/test.csv", cdvae_preprocessing=False,
+                                   mattergen_preprocessing=False)
+    dataset_csv_cdvae = StructureDataset(file_path="data/mp_20/test.csv", cdvae_preprocessing=True,
+                                         mattergen_preprocessing=False)
+    dataset_csv_mattergen = StructureDataset(file_path="data/mp_20/test.csv", cdvae_preprocessing=False,
+                                             mattergen_preprocessing=True)
+    dataset_lmdb = StructureDataset(file_path="data/mp_20/test.lmdb")
+    dataset_csv.to_xyz(Path("csv_test.xyz"))
+    dataset_csv_mattergen.to_xyz(Path("mattergen_test.xyz"))
+    dataset_csv_cdvae.to_xyz(Path("cdvae_test.xyz"))
+    dataset_lmdb.to_xyz(Path("lmdb_test.xyz"))
+
+    # noinspection PyTypeChecker
+    for csv in tqdm(dataset_csv):
+        lmdbs = [lmdb for lmdb in dataset_lmdb if lmdb.metadata["identifier"] == csv.metadata["identifier"]]
+        assert len(lmdbs) == 1
+        lmdb = lmdbs[0]
+        assert all(ca == la for ca, la in zip(csv.atomic_numbers, lmdb.atomic_numbers))
+        csv_structure = csv.get_pymatgen_structure()
+        lmdb_structure = lmdb.get_pymatgen_structure()
+        sm = StructureMatcher(ltol=1e-3, angle_tol=1e-3, stol=1e-3, scale=False)
+        res = sm.get_rms_dist(csv_structure, lmdb_structure)
+        assert res is not None
+
+    # noinspection PyTypeChecker
+    for csv in tqdm(dataset_csv_cdvae):
+        lmdbs = [lmdb for lmdb in dataset_lmdb if lmdb.metadata["identifier"] == csv.metadata["identifier"]]
+        assert len(lmdbs) == 1
+        lmdb = lmdbs[0]
+        assert all(ca == la for ca, la in zip(csv.atomic_numbers, lmdb.atomic_numbers))
+        assert torch.allclose(csv.cell, lmdb.cell)
+        csv_structure = csv.get_pymatgen_structure()
+        lmdb_structure = lmdb.get_pymatgen_structure()
+        sm = StructureMatcher(ltol=1e-3, angle_tol=1e-3, stol=1e-3, scale=False)
+        res = sm.get_rms_dist(csv_structure, lmdb_structure)
+        assert res is not None
