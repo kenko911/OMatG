@@ -604,9 +604,8 @@ class StructureDataset(Dataset):
                     metadata["identifier"] = structure_chunk["material_id"][structure_index]
 
                 property_dict = {}
-                if property_keys is not None:
-                    for prop in property_keys:
-                        property_dict[prop] = torch.tensor(structure_chunk[prop][structure_index])
+                for prop in property_keys:
+                    property_dict[prop] = torch.tensor(structure_chunk[prop][structure_index])
 
                 structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
                                       metadata=metadata)
