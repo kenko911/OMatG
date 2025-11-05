@@ -5,6 +5,7 @@ from typing import Any, Optional, Sequence, Union
 import warnings
 from ase import Atoms
 from ase.io import write
+from ase.symbols import Symbols
 import lmdb
 import pandas as pd
 from pymatgen.core import Structure as PymatgenStructure, Lattice as PymatgenLattice
@@ -78,6 +79,17 @@ class Structure(object):
         return self._atomic_numbers
 
     @property
+    def symbols(self) -> list[str]:
+        """
+        Return the chemical symbols of the atoms in the structure.
+
+        :return:
+            A list of N strings giving the chemical symbols of the atoms, where N is the number of atoms.
+        :rtype: list[str]
+        """
+        return list(Symbols(self._atomic_numbers))
+
+    @property
     def pos(self) -> torch.Tensor:
         """
         Return the real coordinates of the atoms in the structure.
@@ -138,6 +150,34 @@ class Structure(object):
         for key, value in self._property_dict.items():
             if torch.is_tensor(value) and value.is_floating_point():
                 self._property_dict[key] = value.to(floating_point_precision)
+
+    def get_ase_atoms(self) -> Atoms:
+        """
+        Convert the structure to an ASE Atoms object.
+
+        :return:
+            The ASE Atoms object.
+        :rtype: Atoms
+        """
+        # noinspection PyTypeChecker
+        return Atoms(numbers=self.atomic_numbers, positions=self.pos.numpy(), cell=self.cell.numpy(), pbc=True,
+                     info=self.property_dict | self.metadata)
+
+    def get_pymatgen_structure(self) -> PymatgenStructure:
+        """
+        Convert the structure to a pymatgen Structure object.
+
+        :return:
+            The pymatgen Structure object.
+        :rtype: PymatgenStructure
+        """
+        return PymatgenStructure(
+            lattice=PymatgenLattice(self.cell.numpy()),
+            species=self.symbols,
+            coords=self.pos.numpy(),
+            coords_are_cartesian=True,
+            properties=self.property_dict | self.metadata
+        )
 
 
 class StructureDataset(Dataset):
