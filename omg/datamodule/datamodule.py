@@ -696,8 +696,41 @@ class StructureDataset(Dataset):
 
         return structure
 
-    def __del__(self):
-        # TODO: CANI USE CONTEXT?
+    def __getstate__(self) -> dict[str, Any]:
+        """
+        Return the state of the object for pickling.
+
+        This method removes the LMDB environment from the state to avoid pickling issues. This is required for
+        dataloaders with multiple workers.
+
+        :return:
+            The state of the object.
+        :rtype: dict[str, Any]
+        """
+        state = self.__dict__.copy()
+        # Remove the LMDB environment from the state to avoid pickling issues.
+        state["_env"] = None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """
+        Set the state of the object from pickling.
+
+        This method restores the LMDB environment from the state after unpickling. This is required for dataloaders
+        with multiple workers.
+
+        :param state:
+            The state of the object.
+        :type state: dict[str, Any]
+        """
+        self.__dict__.update(state)
+        self._env = lmdb.Environment(str(self._file), subdir=False, readonly=True, lock=False, readahead=False,
+                                     meminit=False)
+
+    def __del__(self) -> None:
+        """
+        Close the LMDB environment when the object is deleted.
+        """
         if hasattr(self, "_env"):
             self._env.close()
 
