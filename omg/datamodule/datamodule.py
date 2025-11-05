@@ -8,6 +8,7 @@ from ase.io import write
 from ase.symbols import Symbols
 import lmdb
 import pandas as pd
+from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure as PymatgenStructure, Lattice as PymatgenLattice
 import torch
 from torch.utils.data import Dataset
@@ -184,9 +185,10 @@ class StructureDataset(Dataset):
     """
     Dataset for reading and storing a list of crystalline structures from several file formats.
 
-    The supported file formats are LMDB, xyz, and csv. The specific format is inferred from the file extension.
-    The _from_lmdb, _from_xyz, and _from_csv methods are used to read the structures from the respective file formats.
-    They document the expected file formats in more detail.
+    The supported file formats are LMDB and CSV. The specific format is inferred from the file extension. The
+    _from_lmdb and _from_csv methods are used to read the structures from the respective file formats. They document the
+    expected file formats in more detail. Additional parser keyword arguments of the _from_lmdb and _from_csv methods
+    can be passed via parser_kwargs.
 
     This class also provides methods to save the structures in LMDB or xyz format.
 
@@ -203,13 +205,16 @@ class StructureDataset(Dataset):
         "16-true", "16", "bf16-true", "bf16", "transformer-engine-float16", or "transformer-engine".
         Defaults to "64-true".
     :type floating_point_precision: Union[int, str, None]
+    :param parser_kwargs:
+        Additional keyword arguments to pass to the specific file format parser methods.
+    :type parser_kwargs: Any
 
     :raises KeyError:
         If any of the property keys are not found in the structure properties.
     """
 
     def __init__(self, file_path: str, property_keys: Optional[Sequence[str]] = None,
-                 floating_point_precision: Union[int, str, None] = "64-true") -> None:
+                 floating_point_precision: Union[int, str, None] = "64-true", **parser_kwargs: Any) -> None:
         """Constructor for the StructureDataset class."""
         super().__init__()
         self._torch_precision = self._get_torch_precision(floating_point_precision)
@@ -227,11 +232,9 @@ class StructureDataset(Dataset):
         self._file_path = existing_file_path
 
         if path.suffix == ".lmdb":
-            self._structures = self._from_lmdb(existing_file_path, property_keys)
-        elif path.suffix == ".xyz":
-            self._structures = self._from_xyz(existing_file_path, property_keys)
+            self._structures = self._from_lmdb(existing_file_path, property_keys, **parser_kwargs)
         elif path.suffix == ".csv":
-            self._structures = self._from_csv(existing_file_path, property_keys)
+            self._structures = self._from_csv(existing_file_path, property_keys, **parser_kwargs)
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb, .xyz, and .csv.")
 
@@ -368,7 +371,8 @@ class StructureDataset(Dataset):
         return structures
 
     @staticmethod
-    def _from_csv(existing_csv_path: Path, property_keys: Optional[Sequence[str]]) -> list[Structure]:
+    def _from_csv(existing_csv_path: Path, property_keys: Optional[Sequence[str]],
+                  cdvae_preprocessing: bool = True, mattergen_preprocessing: bool = False) -> list[Structure]:
         """
         Load crystalline structures from a CSV file.
 
@@ -385,6 +389,9 @@ class StructureDataset(Dataset):
         property_keys parameter. These keys will be read from the CSV file and stored in the property_dict of the
         structure.
 
+        The structures from the CSV files can optionally be preprocessed to match the conventions used in CDVAE (that
+        are also used in DiffCSP and FlowMM) or MatterGen.
+
         :param existing_csv_path:
             Path to the CSV file.
         :type existing_csv_path: Path
@@ -392,14 +399,29 @@ class StructureDataset(Dataset):
             An optional sequence of property keys that are read from the CSV file and stored within the structures.
             Defaults to None.
         :type property_keys: Optional[Sequence[str]]
+        :param cdvae_preprocessing:
+            Whether to preprocess the structures to match the conventions used in CDVAE.
+            This applies the Niggli reduction of PyMatgen.
+            Defaults to True.
+        :type cdvae_preprocessing: bool
+        :param mattergen_preprocessing:
+            Whether to preprocess the structures to match the conventions used in MatterGen.
+            This applies the primitive cell extraction followed by the Niggli reduction of PyMatgen.
+            Defaults to False.
+        :type mattergen_preprocessing: bool
 
         :return:
             A list of crystalline structures loaded from the CSV file.
         :rtype: list[Structure]
 
+        :raises ValueError:
+            If both cdvae_preprocessing and mattergen_preprocessing are enabled at the same time.
         :raises KeyError:
             If any of the required keys are missing in the CSV records.
         """
+        if cdvae_preprocessing and mattergen_preprocessing:
+            raise ValueError("CDVAE and MatterGen preprocessing cannot both be enabled at the same time.")
+
         csv_structures = pd.read_csv(existing_csv_path)
         if "cif" not in csv_structures.keys():
             raise KeyError(f"CSV file does not contain 'cif' column.")
@@ -409,11 +431,40 @@ class StructureDataset(Dataset):
                     raise KeyError(f"CSV file does not contain '{prop}' column.")
 
         structures = []
+        changed_structures = 0
         for structure_index in tqdm(range(len(csv_structures)), desc=f"Loading {existing_csv_path} data"):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 pymatgen_structure = PymatgenStructure.from_str(csv_structures["cif"][structure_index], fmt="cif")
-            # TODO: CAREFULLY MAKE SURE THAT ALL THE STRUCTURES ARE MATCHING AND THAT ALL LATTICES AGREE.
+
+            # See https://github.com/txie-93/cdvae/blob/main/cdvae/common/data_utils.py.
+            # Configurations at https://github.com/txie-93/cdvae/tree/main/conf/data are such that niggli=True and
+            # primitive=False.
+            if cdvae_preprocessing:
+                cdvae_structure = pymatgen_structure.get_reduced_structure()
+                # This rotates the lattice but since we use fractional coordinates, it doesn't really matter.
+                cdvae_structure = PymatgenStructure(
+                    lattice=PymatgenLattice.from_parameters(*cdvae_structure.lattice.parameters),
+                    species=cdvae_structure.species,
+                    coords=cdvae_structure.frac_coords,
+                    coords_are_cartesian=False,
+                )
+                # Verify that the structures match.
+                if StructureMatcher(ltol=1e-4, angle_tol=1e-4, stol=1e-4, scale=False).get_rms_dist(
+                        cdvae_structure, pymatgen_structure) is None:
+                    changed_structures += 1
+                pymatgen_structure = cdvae_structure
+
+            # See https://github.com/microsoft/mattergen/blob/main/mattergen/common/data/dataset.py.
+            if mattergen_preprocessing:
+                # Note that this is also effectively called when one passes primitive=True to from_str.
+                mattergen_structure = pymatgen_structure.get_primitive_structure()
+                mattergen_structure = mattergen_structure.get_reduced_structure()
+                # Verify that the structures match.
+                if StructureMatcher(ltol=1e-4, angle_tol=1e-4, stol=1e-4, scale=False).get_rms_dist(
+                        mattergen_structure, pymatgen_structure) is None:
+                    changed_structures += 1
+                pymatgen_structure = mattergen_structure
 
             pos = torch.tensor(pymatgen_structure.cart_coords)
             cell = torch.tensor(pymatgen_structure.lattice.matrix)
@@ -430,6 +481,8 @@ class StructureDataset(Dataset):
             structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
                                   metadata=metadata)
             structures.append(structure)
+        if changed_structures > 0:
+            warnings.warn(f"{changed_structures} structures were changed during preprocessing.")
         return structures
 
     def to_lmdb(self, lmdb_path: Path) -> None:
@@ -453,7 +506,7 @@ class StructureDataset(Dataset):
                 data = {
                     "pos": structure.pos,
                     "cell": structure.cell,
-                    "atomic_numbers": structure.atomic_numbers,
+                    "atomic_numbers": torch.tensor(structure.atomic_numbers, dtype=torch.int32),
                 } | structure.property_dict | structure.metadata
                 txn.put(str(idx).encode(), pickle.dumps(data))
 
@@ -472,9 +525,7 @@ class StructureDataset(Dataset):
             raise FileExistsError(f"XYZ path {xyz_path} already exists.")
         all_atoms = []
         for struc in tqdm(self._structures, desc=f"Converting configurations to ASE Atoms"):
-            # TODO: TEST!
-            all_atoms.append(Atoms(numbers=struc.atomic_numbers, positions=struc.pos.numpy(), cell=struc.cell, pbc=True,
-                                   info=struc.property_dict))
+            all_atoms.append(struc.get_ase_atoms())
         write(str(xyz_path), all_atoms, format="extxyz")
 
     def __len__(self) -> int:
