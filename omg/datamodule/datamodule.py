@@ -356,7 +356,7 @@ class StructureDataset(Dataset):
                     raise TypeError(f"Key {key} in the lmdb file has 'pos' of dtype {pos.dtype}, "
                                     f"expected floating point dtype.")
 
-                metadata = {"file_path": existing_lmdb_path, "file_key": key}
+                metadata = {"file_path": str(existing_lmdb_path), "file_key": key}
                 if "ids" in lmdb_structure:
                     metadata["identifier"] = lmdb_structure["ids"]
 
@@ -473,7 +473,7 @@ class StructureDataset(Dataset):
             cell = torch.tensor(pymatgen_structure.lattice.matrix)
             atomic_numbers = list(pymatgen_structure.atomic_numbers)
 
-            metadata = {"file_path": existing_csv_path, "file_key": structure_index}
+            metadata = {"file_path": str(existing_csv_path), "file_key": structure_index}
             if "material_id" in csv_structures.keys():
                 metadata["identifier"] = csv_structures["material_id"][structure_index]
 
@@ -627,6 +627,8 @@ if __name__ == '__main__':
     dataset_csv_mattergen = StructureDataset(file_path="data/mp_20/test.csv", cdvae_preprocessing=False,
                                              mattergen_preprocessing=True)
     dataset_lmdb = StructureDataset(file_path="data/mp_20/test.lmdb")
+    overfitting = OverfittingDataset(file_path="data/mp_20/test.lmdb", structure_index=0)
+
     dataset_csv.to_xyz(Path("csv_test.xyz"))
     dataset_csv_mattergen.to_xyz(Path("mattergen_test.xyz"))
     dataset_csv_cdvae.to_xyz(Path("cdvae_test.xyz"))
