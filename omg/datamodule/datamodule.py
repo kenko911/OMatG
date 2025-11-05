@@ -400,8 +400,8 @@ class StructureDataset(Dataset):
         The metadata of each structure will contain the following keys:
         - "file_path": The path to the LMDB file from which the structure was loaded.
         - "file_key": The key in the LMDB file corresponding to the structure.
-        - "identifier": If "ids" is present in the LMDB record, it will be stored here. This is usually a unique identifier
-            of the structure, e.g., from Materials Project.
+        - "identifier": If "ids" or "identifier" is present in the LMDB record, it will be stored here. This is usually
+                        a unique identifier of the structure, e.g., from Materials Project.
 
         It is possible to read additional property keys from the LMDB file into the structures by specifying them in the
         property_keys parameter. These keys will be read from the LMDB record and stored in the property_dict of the
@@ -459,8 +459,14 @@ class StructureDataset(Dataset):
                                     f"{lmdb_structure["pos"].dtype}, expected floating point dtype.")
 
                 metadata = {"file_path": str(existing_lmdb_path), "file_key": int_key}
+                if "ids" in lmdb_structure and "identifier" in lmdb_structure:
+                    raise KeyError(f"Key {int_key} in the lmdb file contains both 'ids' and 'identifier'. Only one of "
+                                   f"these should be present.")
+                # Included for backwards compatibility.
                 if "ids" in lmdb_structure:
                     metadata["identifier"] = lmdb_structure["ids"]
+                if "identifier" in lmdb_structure:
+                    metadata["identifier"] = lmdb_structure["identifier"]
 
                 for prop in property_keys:
                     if prop not in lmdb_structure:
@@ -676,6 +682,24 @@ class StructureDataset(Dataset):
         """
         Return the structure at the given index.
 
+        The structure is read lazily from the LMDB file of this class at the given key.
+
+        Each record (key) in the LMDB file is expected to contain a pickled dictionary with at least the following keys
+        to represent a structure with N atoms:
+        - "cell": A 3x3 torch.Tensor of the lattice vectors.
+                  The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
+        - "pos": A Nx3 torch.Tensor of atomic positions.
+        - "atomic_numbers": A torch tensor of N integers giving the atomic numbers of the atoms.
+
+        The metadata of each structure will contain the following keys:
+        - "file_path": The path to the LMDB file from which the structure was loaded.
+        - "file_key": The key in the LMDB file corresponding to the structure.
+        - "identifier": If "ids" or "identifier" is present in the LMDB record, it will be stored here. This is usually
+                        a unique identifier of the structure, e.g., from Materials Project.
+
+        Additionally, the property keys will be read from the LMDB record and stored in the property_dict of the
+        structure.
+
         :param idx:
             Index of the structure to return.
         :type idx: int
@@ -688,6 +712,9 @@ class StructureDataset(Dataset):
             lmdb_structure = pickle.loads(txn.get(str(idx).encode()))
 
         metadata = {"file_path": str(self._file_path), "file_key": idx}
+        assert not ("ids" in lmdb_structure and "identifier" in lmdb_structure)
+        if "ids" in lmdb_structure:
+            metadata["identifier"] = lmdb_structure["ids"]
         if "identifier" in lmdb_structure:
             metadata["identifier"] = lmdb_structure["identifier"]
 
@@ -797,6 +824,7 @@ class OverfittingDataset(StructureDataset):
 
 
 if __name__ == '__main__':
+    store = False
     dataset_csv = StructureDataset(file_path="data/mp_20/test.csv", cdvae_preprocessing=False,
                                    mattergen_preprocessing=False)
     dataset_csv_cdvae = StructureDataset(file_path="data/mp_20/test.csv", cdvae_preprocessing=True,
@@ -806,10 +834,11 @@ if __name__ == '__main__':
     dataset_lmdb = StructureDataset(file_path="data/mp_20/test.lmdb")
     overfitting = OverfittingDataset(file_path="data/mp_20/test.lmdb", structure_index=0)
 
-    dataset_csv.to_xyz(Path("csv_test.xyz"))
-    dataset_csv_mattergen.to_xyz(Path("mattergen_test.xyz"))
-    dataset_csv_cdvae.to_xyz(Path("cdvae_test.xyz"))
-    dataset_lmdb.to_xyz(Path("lmdb_test.xyz"))
+    if store:
+        dataset_csv.to_xyz(Path("csv_test_new.xyz"))
+        dataset_csv_mattergen.to_xyz(Path("mattergen_test_new.xyz"))
+        dataset_csv_cdvae.to_xyz(Path("cdvae_test_new.xyz"))
+        dataset_lmdb.to_xyz(Path("lmdb_test_new.xyz"))
 
     # noinspection PyTypeChecker
     for csv in tqdm(dataset_csv):
