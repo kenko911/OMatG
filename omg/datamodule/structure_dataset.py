@@ -76,7 +76,7 @@ class StructureDataset(Dataset):
         self._torch_precision = self._get_torch_precision(floating_point_precision)
         self._property_keys = list(property_keys) if property_keys is not None else []
         for prop in self._property_keys:
-            if prop in ("cell", "pos", "atomic_numbers", "file_path", "file_key", "identifier"):
+            if prop in ("cell", "pos", "atomic_numbers", "file_path", "file_key", "identifier", "ids"):
                 raise KeyError(f"Property key '{prop}' is reserved and cannot be used as a property key.")
         path = Path(file_path)
 
@@ -88,15 +88,14 @@ class StructureDataset(Dataset):
             existing_file_path = Path(files("omg").joinpath(file_path))
             if not existing_file_path.exists():
                 raise FileNotFoundError(f"File path {file_path} neither exists on its own or within the omg package.")
-        self._file_path = existing_file_path
 
         if path.suffix == ".lmdb":
             # noinspection PyArgumentList
-            self._file, self._number_structures, self._structures = self._from_lmdb(
-                self._file_path, self._property_keys, return_structures=not lazy_storage, **parser_kwargs)
+            self._file_path, self._number_structures, self._structures = self._from_lmdb(
+                existing_file_path, self._property_keys, return_structures=not lazy_storage, **parser_kwargs)
         elif path.suffix == ".csv":
-            self._file, self._number_structures, self._structures = self._from_csv(
-                self._file_path, self._property_keys, return_structures=not lazy_storage, **parser_kwargs)
+            self._file_path, self._number_structures, self._structures = self._from_csv(
+                existing_file_path, self._property_keys, return_structures=not lazy_storage, **parser_kwargs)
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb and .csv.")
 
@@ -108,7 +107,7 @@ class StructureDataset(Dataset):
 
         if self._lazy_storage:
             # Read structures lazily from this file.
-            self._env = lmdb.Environment(str(self._file), subdir=False, readonly=True, lock=False, readahead=False,
+            self._env = lmdb.Environment(str(self._file_path), subdir=False, readonly=True, lock=False, readahead=False,
                                          meminit=False)
         else:
             self._env = None
@@ -419,7 +418,7 @@ class StructureDataset(Dataset):
 
                 pos = torch.tensor(pymatgen_structure.cart_coords)
                 cell = torch.tensor(pymatgen_structure.lattice.matrix)
-                atomic_numbers = list(pymatgen_structure.atomic_numbers)
+                atomic_numbers = torch.tensor(pymatgen_structure.atomic_numbers, dtype=torch.int32)
 
                 metadata = {"file_path": str(cache_file), "file_key": structure_index}
                 if "material_id" in csv_columns:
@@ -555,7 +554,7 @@ class StructureDataset(Dataset):
         with self._env.begin(write=False) as txn:
             lmdb_structure = pickle.loads(txn.get(str(idx).encode()))
 
-        metadata = {"file_path": str(self._file), "file_key": idx}
+        metadata = {"file_path": str(self._file_path), "file_key": idx}
         assert not ("ids" in lmdb_structure and "identifier" in lmdb_structure)
         if "ids" in lmdb_structure:
             metadata["identifier"] = lmdb_structure["ids"]
@@ -596,7 +595,7 @@ class StructureDataset(Dataset):
         """
         self.__dict__.update(state)
         if self._lazy_storage:
-            self._env = lmdb.Environment(str(self._file), subdir=False, readonly=True, lock=False)
+            self._env = lmdb.Environment(str(self._file_path), subdir=False, readonly=True, lock=False)
         else:
             self._env = None
 

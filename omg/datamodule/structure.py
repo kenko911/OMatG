@@ -9,7 +9,7 @@ class Structure(object):
     """
     Storage for a single crystalline structure of atoms.
 
-    The structure is represented by its cell, atom numbers, and real atom coordinates.  # TODO: This should probably be fractional.
+    The structure is represented by its cell, atom numbers, and real atom coordinates.
     Additionally, one can store arbitrary properties and metadata associated with the structure in this class.
 
     :param cell:
@@ -17,8 +17,8 @@ class Structure(object):
         vector.
     :type cell: torch.Tensor
     :param atomic_numbers:
-        A list of N integers giving the atomic numbers of the atoms, where N is the number of atoms.
-    :type atomic_numbers: Sequence[int]
+        A vector of N integers giving the atomic numbers of the atoms, where N is the number of atoms.
+    :type atomic_numbers: torch.Tensor
     :param pos:
         A Nx3 matrix of the real coordinates of the atoms in the structure, where N is the number of atoms.
     :type pos: torch.Tensor
@@ -35,13 +35,14 @@ class Structure(object):
         If the cell is not a 3x3 matrix or if the pos is not a Nx3 matrix, where N is the length of species.
     """
 
-    def __init__(self, cell: torch.Tensor, atomic_numbers: Sequence[int], pos: torch.Tensor,
+    def __init__(self, cell: torch.Tensor, atomic_numbers: torch.Tensor, pos: torch.Tensor,
                  property_dict: Optional[dict[str, Any]] = None, metadata: Optional[dict[str, Any]] = None) -> None:
         """Constructor for the Structure class."""
         assert cell.shape == (3, 3)
+        assert atomic_numbers.dim() == 1
         assert pos.shape == (len(atomic_numbers), 3)
         self._cell = cell
-        self._atomic_numbers = list(atomic_numbers)
+        self._atomic_numbers = atomic_numbers
         self._pos = pos
         self._property_dict = property_dict if property_dict is not None else {}
         self._metadata = metadata if metadata is not None else {}
@@ -77,7 +78,7 @@ class Structure(object):
         """
         return cls(
             cell=data["cell"],
-            atomic_numbers=data["atomic_numbers"].tolist(),
+            atomic_numbers=data["atomic_numbers"],
             pos=data["pos"],
             property_dict={prop: data[prop] for prop in property_keys},
             metadata=metadata
@@ -98,10 +99,10 @@ class Structure(object):
             A data dictionary representing the structure.
         :rtype: dict[str, Any]
         """
-        return { # TODO: REPLACE ATOMIC_NUMBERS EVERYWHERE BY TORCH TENSOR
+        return {
             "pos": self.pos,
             "cell": self.cell,
-            "atomic_numbers": torch.tensor(self.atomic_numbers, dtype=torch.int32)
+            "atomic_numbers": self.atomic_numbers
         } | self.property_dict | self.metadata
 
     @property
@@ -117,13 +118,13 @@ class Structure(object):
         return self._cell
 
     @property
-    def atomic_numbers(self) -> list[int]:
+    def atomic_numbers(self) -> torch.Tensor:
         """
         Return the atomic numbers of the atoms in the structure.
 
         :return:
-            A list of N integers giving the atomic numbers of the atoms, where N is the number of atoms.
-        :rtype: list[int]
+            A vector of N integers giving the atomic numbers of the atoms, where N is the number of atoms.
+        :rtype: torch.Tensor
         """
         return self._atomic_numbers
 
@@ -136,7 +137,7 @@ class Structure(object):
             A list of N strings giving the chemical symbols of the atoms, where N is the number of atoms.
         :rtype: list[str]
         """
-        return list(Symbols(self._atomic_numbers))
+        return list(Symbols(self._atomic_numbers.numpy()))
 
     @property
     def pos(self) -> torch.Tensor:
