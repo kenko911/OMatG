@@ -43,6 +43,8 @@ class StructureDataset(Dataset):
 
     This class also provides methods to save all the structures in LMDB or xyz format.
 
+    The returned structures can optionally be converted to fractional coordinates and Niggli reduced.
+
     :param file_path:
         Path to the file containing the structures.
         This can either be an absolute path, a relative path to the current working directory, or a relative path within
@@ -58,6 +60,18 @@ class StructureDataset(Dataset):
         "16-true", "16", "bf16-true", "bf16", "transformer-engine-float16", or "transformer-engine".
         Defaults to "64-true".
     :type floating_point_precision: Union[int, str, None]
+    :param lazy_storage:
+        Whether to read the structures lazily from a LMDB file when they are requested.
+        Defaults to True.
+    :type lazy_storage: bool
+    :param convert_to_fractional:
+        Whether to convert the atomic positions to fractional coordinates in the returned structures.
+        Defaults to True.
+    :type convert_to_fractional: bool
+    :param niggli_reduce:
+        Whether to apply a Niggli reduction to the returned structures.
+        Defaults to False.
+    :type niggli_reduce: bool
     :param parser_kwargs:
         Additional keyword arguments to pass to the specific file format parser methods.
     :type parser_kwargs: Any
@@ -70,7 +84,7 @@ class StructureDataset(Dataset):
 
     def __init__(self, file_path: str, property_keys: Optional[Sequence[str]] = None,
                  floating_point_precision: Union[int, str, None] = "64-true", lazy_storage: bool = True,
-                 **parser_kwargs: Any) -> None:
+                 convert_to_fractional: bool = True, niggli_reduce: bool = False, **parser_kwargs: Any) -> None:
         """Constructor for the StructureDataset class."""
         super().__init__()
         self._torch_precision = self._get_torch_precision(floating_point_precision)
@@ -100,9 +114,16 @@ class StructureDataset(Dataset):
             raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb and .csv.")
 
         self._lazy_storage = lazy_storage
+        self._convert_to_fractional = convert_to_fractional
+        self._niggli_reduce = niggli_reduce
+
         assert (self._lazy_storage and self._structures == []) or (not self._lazy_storage and
                 len(self._structures) == self._number_structures)
         for structure in self._structures:
+            if self._niggli_reduce:
+                structure.niggli_reduce()
+            if self._convert_to_fractional:
+                structure.convert_to_fractional()
             structure.to(self._torch_precision)
 
         if self._lazy_storage:
@@ -462,6 +483,9 @@ class StructureDataset(Dataset):
             for idx in tqdm(range(self._number_structures), desc=f"Saving structures to {lmdb_path}"):
                 structure = self[idx]
                 lmdb_structure = structure.to_dictionary()
+                if structure.pos_is_fractional:
+                    # Convert to real positions for storage.
+                    lmdb_structure["pos"] = torch.matmul(structure.pos, structure.cell)
                 txn.put(str(idx).encode(), pickle.dumps(lmdb_structure))
 
     def to_xyz(self, xyz_path: Path) -> None:
@@ -562,6 +586,10 @@ class StructureDataset(Dataset):
             metadata["identifier"] = lmdb_structure["identifier"]
 
         structure = Structure.from_dictionary(lmdb_structure, self._property_keys, metadata)
+        if self._niggli_reduce:
+            structure.niggli_reduce()
+        if self._convert_to_fractional:
+            structure.convert_to_fractional()
         structure.to(self._torch_precision)
 
         return structure
@@ -671,15 +699,18 @@ class OverfittingDataset(StructureDataset):
 if __name__ == '__main__':
     store = True
     lazy = False
-    suffix = "lazy_second" if lazy else "eager_second"
+    suffix = "lazy_second_frac" if lazy else "eager_second_frac"
     dataset_csv = StructureDataset(file_path="data/mp_20/test.csv", lazy_storage=lazy, cdvae_preprocessing=False,
-                                   mattergen_preprocessing=False)
+                                   mattergen_preprocessing=False, niggli_reduce=False, convert_to_fractional=True)
     dataset_csv_cdvae = StructureDataset(file_path="data/mp_20/test.csv", lazy_storage=lazy, cdvae_preprocessing=True,
-                                         mattergen_preprocessing=False)
+                                         mattergen_preprocessing=False, niggli_reduce=False, convert_to_fractional=True)
     dataset_csv_mattergen = StructureDataset(file_path="data/mp_20/test.csv", lazy_storage=lazy,
-                                             cdvae_preprocessing=False, mattergen_preprocessing=True)
-    dataset_lmdb = StructureDataset(file_path="data/mp_20/test.lmdb", lazy_storage=lazy)
-    overfitting = OverfittingDataset(file_path="data/mp_20/test.lmdb", lazy_storage=lazy, structure_index=0)
+                                             cdvae_preprocessing=False, mattergen_preprocessing=True,
+                                             niggli_reduce=False, convert_to_fractional=True)
+    dataset_lmdb = StructureDataset(file_path="data/mp_20/test.lmdb", lazy_storage=lazy, niggli_reduce=False,
+                                    convert_to_fractional=True)
+    overfitting = OverfittingDataset(file_path="data/mp_20/test.lmdb", lazy_storage=lazy, structure_index=0,
+                                     niggli_reduce=False, convert_to_fractional=True)
 
     if store:
         dataset_csv.to_xyz(Path(f"csv_test_{suffix}.xyz"))
