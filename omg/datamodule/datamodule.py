@@ -328,6 +328,8 @@ class StructureDataset(Dataset):
         self._lazy_storage = lazy_storage
         assert (self._lazy_storage and self._structures == []) or (not self._lazy_storage and
                 len(self._structures) == self._number_structures)
+        for structure in self._structures:
+            structure.to(self._torch_precision)
 
         if self._lazy_storage:
             # Read structures lazily from this file.
@@ -894,7 +896,7 @@ class OverfittingDataset(StructureDataset):
 
 if __name__ == '__main__':
     store = True
-    lazy = True
+    lazy = False
     suffix = "lazy_second" if lazy else "eager_second"
     dataset_csv = StructureDataset(file_path="data/mp_20/test.csv", lazy_storage=lazy, cdvae_preprocessing=False,
                                    mattergen_preprocessing=False)
