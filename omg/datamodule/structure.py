@@ -271,7 +271,7 @@ class Structure(object):
         """
         atoms = self.get_ase_atoms()
         niggli_reduce(atoms)
-        self._cell = torch.tensor(atoms.cell, dtype=self._cell.dtype)
+        self._cell = torch.tensor(atoms.cell[:], dtype=self._cell.dtype)
         if self._fractional:
             self._pos = torch.tensor(atoms.get_scaled_positions(), dtype=self._pos.dtype)
         else:
