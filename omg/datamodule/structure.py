@@ -281,10 +281,20 @@ class Structure(object):
         """
         Convert the atomic positions to fractional coordinates.
         """
-        with torch.no_grad():
-            # Solve r = f * cell for f.
-            self._pos = torch.remainder(torch.linalg.solve(self._cell, self._pos, left=False), 1.0)
-        self._fractional = True
+        if not self._fractional:
+            with torch.no_grad():
+                # Solve r = f * cell for f.
+                self._pos = torch.remainder(torch.linalg.solve(self._cell, self._pos, left=False), 1.0)
+            self._fractional = True
+
+    def convert_to_cartesian(self) -> None:
+        """
+        Convert the atomic positions to cartesian coordinates.
+        """
+        if self._fractional:
+            with torch.no_grad():
+                self._pos = torch.matmul(self._pos, self._cell)
+            self._fractional = False
 
 
 if __name__ == '__main__':
@@ -304,3 +314,12 @@ if __name__ == '__main__':
     print(structure.get_ase_atoms().positions)
     print(structure.get_pymatgen_structure().lattice.matrix)
     print(structure.get_ase_atoms().cell)
+    print()
+
+    print(structure.pos)
+    structure.convert_to_fractional()
+    print(structure.pos)
+    structure.convert_to_cartesian()
+    print(structure.pos)
+    structure.convert_to_cartesian()
+    print(structure.pos)
