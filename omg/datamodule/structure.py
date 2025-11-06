@@ -1,5 +1,6 @@
 from typing import Any, Optional, Sequence
 from ase import Atoms
+from ase.build.tools import niggli_reduce
 from ase.symbols import Symbols
 from pymatgen.core import Structure as PymatgenStructure, Lattice as PymatgenLattice
 import torch
@@ -12,6 +13,9 @@ class Structure(object):
     The structure is represented by its cell, atom numbers, and real atom coordinates.
     Additionally, one can store arbitrary properties and metadata associated with the structure in this class.
 
+    This class also provides methods to change the representation of the structure. It is possible to convert the real
+    atom coordinates to fractional coordinates, and to Niggli reduce the structure.
+
     :param cell:
         A 3x3 matrix of the lattice vectors. The [i, j]-th element is the jth Cartesian coordinate of the ith unit
         vector.
@@ -21,6 +25,7 @@ class Structure(object):
     :type atomic_numbers: torch.Tensor
     :param pos:
         A Nx3 matrix of the real coordinates of the atoms in the structure, where N is the number of atoms.
+        If convert_to_fractional() is called, these coordinates will be converted to fractional coordinates.
     :type pos: torch.Tensor
     :param property_dict:
         An optional dictionary of properties associated with the structure.
@@ -46,6 +51,7 @@ class Structure(object):
         self._pos = pos
         self._property_dict = property_dict if property_dict is not None else {}
         self._metadata = metadata if metadata is not None else {}
+        self._fractional = False
 
     @classmethod
     def from_dictionary(cls, data: dict[str, torch.Tensor], property_keys: Sequence[str],
@@ -142,13 +148,29 @@ class Structure(object):
     @property
     def pos(self) -> torch.Tensor:
         """
-        Return the real coordinates of the atoms in the structure.
+        Return the real or fractional coordinates of the atoms in the structure.
+
+        If convert_to_fractional() has been called, these coordinates will be fractional coordinates. Otherwise, they
+        will be real coordinates.
 
         :return:
-            A Nx3 matrix of the real coordinates of the atoms, where N is the number of of atoms.
+            A Nx3 matrix of the coordinates of the atoms, where N is the number of atoms.
         :rtype: torch.Tensor
         """
         return self._pos
+
+    @property
+    def pos_is_fractional(self) -> bool:
+        """
+        Return whether the atomic positions returned by pos are in fractional coordinates.
+
+        This will be True after calling convert_to_fractional().
+
+        :return:
+            True if the atomic positions are in fractional coordinates, False otherwise.
+        :rtype: bool
+        """
+        return self._fractional
 
     @property
     def property_dict(self) -> dict[str, Any]:
@@ -209,9 +231,14 @@ class Structure(object):
             The ASE Atoms object.
         :rtype: Atoms
         """
-        # noinspection PyTypeChecker
-        return Atoms(numbers=self.atomic_numbers, positions=self.pos.numpy(), cell=self.cell.numpy(), pbc=True,
-                     info=self.property_dict | self.metadata)
+        if self._fractional:
+            # noinspection PyTypeChecker
+            return Atoms(numbers=self.atomic_numbers.tolist(), scaled_positions=self.pos.numpy(),
+                         cell=self.cell.numpy(), pbc=True, info=self.property_dict | self.metadata)
+        else:
+            # noinspection PyTypeChecker
+            return Atoms(numbers=self.atomic_numbers.tolist(), positions=self.pos.numpy(), cell=self.cell.numpy(),
+                         pbc=True, info=self.property_dict | self.metadata)
 
     def get_pymatgen_structure(self) -> PymatgenStructure:
         """
@@ -221,10 +248,59 @@ class Structure(object):
             The pymatgen Structure object.
         :rtype: PymatgenStructure
         """
-        return PymatgenStructure(
-            lattice=PymatgenLattice(self.cell.numpy()),
-            species=self.symbols,
-            coords=self.pos.numpy(),
-            coords_are_cartesian=True,
-            properties=self.property_dict | self.metadata
-        )
+        if self._fractional:
+            return PymatgenStructure(
+                lattice=PymatgenLattice(self.cell.numpy()),
+                species=self.symbols,
+                coords=self.pos.numpy(),
+                coords_are_cartesian=False,
+                properties=self.property_dict | self.metadata
+            )
+        else:
+            return PymatgenStructure(
+                lattice=PymatgenLattice(self.cell.numpy()),
+                species=self.symbols,
+                coords=self.pos.numpy(),
+                coords_are_cartesian=True,
+                properties=self.property_dict | self.metadata
+            )
+
+    def niggli_reduce(self) -> None:
+        """
+        Niggli reduce the structure.
+        """
+        atoms = self.get_ase_atoms()
+        niggli_reduce(atoms)
+        self._cell = torch.tensor(atoms.cell, dtype=self._cell.dtype)
+        if self._fractional:
+            self._pos = torch.tensor(atoms.get_scaled_positions(), dtype=self._pos.dtype)
+        else:
+            self._pos = torch.tensor(atoms.positions, dtype=self._pos.dtype)
+
+    def convert_to_fractional(self) -> None:
+        """
+        Convert the atomic positions to fractional coordinates.
+        """
+        with torch.no_grad():
+            # Solve r = f * cell for f.
+            self._pos = torch.remainder(torch.linalg.solve(self._cell, self._pos, left=False), 1.0)
+        self._fractional = True
+
+
+if __name__ == '__main__':
+    from numpy import transpose
+    from omg.datamodule import StructureDataset
+
+    dataset_lmdb = StructureDataset(file_path="data/mp_20/test.lmdb", lazy_storage=False)
+
+    structure = dataset_lmdb[0]
+    structure.niggli_reduce()
+    print(structure.get_pymatgen_structure().cart_coords)
+    print(structure.get_ase_atoms().positions)
+    print(structure.get_pymatgen_structure().lattice.matrix)
+    print(structure.get_ase_atoms().cell)
+    structure.convert_to_fractional()
+    print(structure.get_pymatgen_structure().cart_coords)
+    print(structure.get_ase_atoms().positions)
+    print(structure.get_pymatgen_structure().lattice.matrix)
+    print(structure.get_ase_atoms().cell)
