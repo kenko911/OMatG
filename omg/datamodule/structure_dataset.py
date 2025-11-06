@@ -514,7 +514,7 @@ class StructureDataset(Dataset):
         This method is required to make the dataset compatible with PyTorch dataloaders.
 
         :return:
-        The number of structures within the dataset.
+            The number of structures within the dataset.
         :rtype: int
         """
         return self._number_structures
