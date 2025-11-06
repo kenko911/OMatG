@@ -707,7 +707,13 @@ class StructureDataset(Dataset):
         :return:
             The structure at the given index.
         :rtype: Structure
+
+        :raises IndexError:
+            If the given index is out of bounds.
         """
+        if idx < 0 or idx >= self._number_structures:
+            raise IndexError(f"Index {idx} out of bounds for dataset of size {self._number_structures}.")
+
         with self._env.begin(write=False) as txn:
             lmdb_structure = pickle.loads(txn.get(str(idx).encode()))
 
