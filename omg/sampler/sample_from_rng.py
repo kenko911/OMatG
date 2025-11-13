@@ -7,7 +7,7 @@ import numpy as np
 
 from omg.globals import MAX_ATOM_NUM
 from .sampler import Sampler
-from ..datamodule.dataloader import OMGData
+from omg.datamodule import OMGData, Structure
 from torch_geometric.data import Batch
 from .distributions import InformedLatticeDistribution, MirrorData, NDependentGamma
 
@@ -115,8 +115,9 @@ class SampleFromRNG(Sampler):
             if not self._frac and not isinstance(self.distribution[1], MirrorData):
                 pos = np.dot(pos, cell)
 
-            configs.append(OMGData.from_data(species, torch.from_numpy(pos).to(x1.pos.dtype),
-                                             torch.from_numpy(cell).to(x1.cell.dtype), convert_to_fractional=False))
+            configs.append(OMGData(Structure(cell=torch.from_numpy(cell).to(x1.cell.dtype),
+                                             atomic_numbers=torch.tensor(species, dtype=torch.int64),
+                                             pos=torch.from_numpy(pos).to(x1.pos.dtype), pos_is_fractional=True)))
 
         return Batch.from_data_list(configs)
 

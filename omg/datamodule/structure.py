@@ -10,11 +10,11 @@ class Structure(object):
     """
     Storage for a single crystalline structure of atoms.
 
-    The structure is represented by its cell, atom numbers, and real atom coordinates.
+    The structure is represented by its cell, atom numbers, and Cartesian or fractional atom coordinates.
     Additionally, one can store arbitrary properties and metadata associated with the structure in this class.
 
-    This class also provides methods to change the representation of the structure. It is possible to convert the real
-    atom coordinates to fractional coordinates, and to Niggli reduce the structure.
+    This class also provides methods to change the representation of the structure. It is possible to convert the
+    Cartesian atom coordinates to fractional coordinates and vice versa, and to Niggli reduce the structure.
 
     :param cell:
         A 3x3 matrix of the lattice vectors. The [i, j]-th element is the jth Cartesian coordinate of the ith unit
@@ -24,8 +24,8 @@ class Structure(object):
         A vector of N integers giving the atomic numbers of the atoms, where N is the number of atoms.
     :type atomic_numbers: torch.Tensor
     :param pos:
-        A Nx3 matrix of the real coordinates of the atoms in the structure, where N is the number of atoms.
-        If convert_to_fractional() is called, these coordinates will be converted to fractional coordinates.
+        A Nx3 matrix of the fractional or Cartesian coordinates of the atoms in the structure, where N is the number of
+        atoms.
     :type pos: torch.Tensor
     :param property_dict:
         An optional dictionary of properties associated with the structure.
@@ -35,13 +35,18 @@ class Structure(object):
         An optional dictionary of metadata associated with the structure.
         Defaults to None.
     :type metadata: Optional[dict[str, Any]]
+    :param pos_is_fractional:
+        Whether the given atomic positions are in fractional coordinates.
+        Defaults to False.
+    :type pos_is_fractional: bool
 
     :raises AssertionError:
         If the cell is not a 3x3 matrix or if the pos is not a Nx3 matrix, where N is the length of species.
     """
 
     def __init__(self, cell: torch.Tensor, atomic_numbers: torch.Tensor, pos: torch.Tensor,
-                 property_dict: Optional[dict[str, Any]] = None, metadata: Optional[dict[str, Any]] = None) -> None:
+                 property_dict: Optional[dict[str, Any]] = None, metadata: Optional[dict[str, Any]] = None,
+                 pos_is_fractional: bool = False) -> None:
         """Constructor for the Structure class."""
         assert cell.shape == (3, 3)
         assert atomic_numbers.dim() == 1
@@ -51,18 +56,18 @@ class Structure(object):
         self._pos = pos
         self._property_dict = property_dict if property_dict is not None else {}
         self._metadata = metadata if metadata is not None else {}
-        self._fractional = False
+        self._fractional = pos_is_fractional
 
     @classmethod
     def from_dictionary(cls, data: dict[str, torch.Tensor], property_keys: Sequence[str],
-                        metadata: dict[str, Any]) -> "Structure":
+                        metadata: dict[str, Any], pos_is_fractional: bool = False) -> "Structure":
         """
         Create a Structure object from the given data dictionary and metadata.
 
         The data dictionary is expected to contain at least the following keys:
         - "cell": A 3x3 torch.Tensor of the lattice vectors.
                   The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
-        - "pos": A Nx3 torch.Tensor of atomic positions.
+        - "pos": A Nx3 torch.Tensor of fractional or Cartesian atomic positions.
         - "atomic_numbers": A torch tensor of N integers giving the atomic numbers of the atoms.
 
         Additionally, the data dictionary should contain additional property keys specified in the property_keys
@@ -77,6 +82,10 @@ class Structure(object):
         :param metadata:
             A dictionary of metadata to be included in the Structure's metadata.
         :type metadata: dict[str, Any]
+        :param pos_is_fractional:
+            Whether the atomic positions in the data dictionary are in fractional coordinates.
+            Defaults to False.
+        :type pos_is_fractional: bool
 
         :return:
             A Structure object created from the data dictionary and metadata.
@@ -87,7 +96,8 @@ class Structure(object):
             atomic_numbers=data["atomic_numbers"],
             pos=data["pos"],
             property_dict={prop: data[prop] for prop in property_keys},
-            metadata=metadata
+            metadata=metadata,
+            pos_is_fractional=pos_is_fractional
         )
 
     def to_dictionary(self) -> dict[str, Any]:
@@ -96,7 +106,7 @@ class Structure(object):
 
         The returned dictionary contains the following keys:
         - "cell": A 3x3 torch.Tensor of the lattice vectors.
-        - "pos": A Nx3 torch.Tensor of atomic positions.
+        - "pos": A Nx3 torch.Tensor of Cartesian atomic positions.
         - "atomic_numbers": A torch tensor of N integers giving the atomic numbers of the atoms.
 
         Additionally, the dictionary includes all properties from the property_dict and metadata.
@@ -105,11 +115,19 @@ class Structure(object):
             A data dictionary representing the structure.
         :rtype: dict[str, Any]
         """
-        return {
-            "pos": self.pos,
-            "cell": self.cell,
-            "atomic_numbers": self.atomic_numbers
-        } | self.property_dict | self.metadata
+        # Always return Cartesian coordinates in the dictionary.
+        if self.pos_is_fractional:
+            return {
+                "pos": torch.matmul(self.pos, self.cell),
+                "cell": self.cell,
+                "atomic_numbers": self.atomic_numbers
+            } | self.property_dict | self.metadata
+        else:
+            return {
+                "pos": self.pos,
+                "cell": self.cell,
+                "atomic_numbers": self.atomic_numbers
+            } | self.property_dict | self.metadata
 
     @property
     def cell(self) -> torch.Tensor:
@@ -148,10 +166,10 @@ class Structure(object):
     @property
     def pos(self) -> torch.Tensor:
         """
-        Return the real or fractional coordinates of the atoms in the structure.
+        Return the Cartesian or fractional coordinates of the atoms in the structure.
 
         If convert_to_fractional() has been called, these coordinates will be fractional coordinates. Otherwise, they
-        will be real coordinates.
+        will be Cartesian coordinates.
 
         :return:
             A Nx3 matrix of the coordinates of the atoms, where N is the number of atoms.

@@ -209,7 +209,7 @@ class StructureDataset(Dataset):
         to represent a structure with N atoms:
         - "cell": A 3x3 torch.Tensor of the lattice vectors.
                   The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
-        - "pos": A Nx3 torch.Tensor of atomic positions.
+        - "pos": A Nx3 torch.Tensor of Cartesian atomic positions.
         - "atomic_numbers": A torch tensor of N integers giving the atomic numbers of the atoms.
 
         The metadata of each structure will contain the following keys:
@@ -297,7 +297,7 @@ class StructureDataset(Dataset):
                         raise KeyError(f"Key {int_key} in the lmdb file does not contain '{prop}'.")
 
                 # Test whether the structure can be created.
-                structure = Structure.from_dictionary(lmdb_structure, property_keys, metadata)
+                structure = Structure.from_dictionary(lmdb_structure, property_keys, metadata, pos_is_fractional=False)
                 if return_structures:
                     structures.append(structure)
 
@@ -450,10 +450,11 @@ class StructureDataset(Dataset):
                     property_dict[prop] = torch.tensor(structure_chunk[prop][structure_index])
 
                 structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
-                                      metadata=metadata)
+                                      metadata=metadata, pos_is_fractional=False)
                 if return_structures:
                     structures.append(structure)
 
+                # to_dictionary always returns Cartesian positions.
                 lmdb_structure = structure.to_dictionary()
                 txn.put(str(structure_index).encode(), pickle.dumps(lmdb_structure))
 
@@ -482,10 +483,8 @@ class StructureDataset(Dataset):
               env.begin(write=True) as txn):
             for idx in tqdm(range(self._number_structures), desc=f"Saving structures to {lmdb_path}"):
                 structure = self[idx]
+                # to_dictionary always returns Cartesian positions.
                 lmdb_structure = structure.to_dictionary()
-                if structure.pos_is_fractional:
-                    # Convert to real positions for storage.
-                    lmdb_structure["pos"] = torch.matmul(structure.pos, structure.cell)
                 txn.put(str(idx).encode(), pickle.dumps(lmdb_structure))
 
     def to_xyz(self, xyz_path: Path) -> None:
@@ -585,7 +584,7 @@ class StructureDataset(Dataset):
         if "identifier" in lmdb_structure:
             metadata["identifier"] = lmdb_structure["identifier"]
 
-        structure = Structure.from_dictionary(lmdb_structure, self._property_keys, metadata)
+        structure = Structure.from_dictionary(lmdb_structure, self._property_keys, metadata, pos_is_fractional=False)
         if self._niggli_reduce:
             structure.niggli_reduce()
         if self._convert_to_fractional:
