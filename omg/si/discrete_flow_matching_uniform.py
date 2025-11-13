@@ -75,7 +75,7 @@ class DiscreteFlowMatchingUniform(StochasticInterpolantSpecies):
         yield "loss"
 
     def loss(self, model_function: Callable[[torch.Tensor], tuple[torch.Tensor, torch.Tensor]],
-             t: torch.Tensor, x_0: torch.Tensor, x_1: torch.Tensor, x_t: torch.Tensor, z: torch.tensor,
+             t: torch.Tensor, x_0: torch.Tensor, x_1: torch.Tensor, x_t: torch.Tensor, z: torch.Tensor,
              batch_indices: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
         Compute the cross-entropy loss for the discrete flow matching between points x_0 and x_1 from two distributions

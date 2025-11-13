@@ -310,7 +310,7 @@ def _get_symmetry_dataset_var_prec(atoms: Atoms, angle_tolerance: float = -1.0,
 
 
 def get_space_group(atoms: Atoms, symprec: float = 1.0e-5, angle_tolerance: float = -1.0,
-                    var_prec: bool = False) -> (Optional[str], Optional[int], Optional[str], Optional[Atoms]):
+                    var_prec: bool = False) -> tuple[Optional[str], Optional[int], Optional[str], Optional[Atoms]]:
     """
     Calculate the space group of a given structure using spglib with the given precision arguments.
 

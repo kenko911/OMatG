@@ -6,7 +6,7 @@ from ase.io import read, write
 import torch
 from torch_geometric.data import Data
 import numpy as np
-from omg.datamodule.dataloader import OMGData
+from omg.datamodule import OMGData
 
 
 class DataField(Enum):
@@ -80,8 +80,12 @@ def xyz_saver(data: Union[OMGData, list[OMGData]], filename: Path) -> None:
         batch_size = len(d.n_atoms)
         for i in range(batch_size):
             lower, upper = d.ptr[i * 1], d.ptr[(i * 1) + 1]
-            atoms.append(Atoms(numbers=d.species[lower:upper], scaled_positions=d.pos[lower:upper, :],
-                               cell=d.cell[i, :, :], pbc=(1, 1, 1)))
+            if d.pos_is_fractional[i]:
+                atoms.append(Atoms(numbers=d.species[lower:upper], scaled_positions=d.pos[lower:upper, :],
+                                   cell=d.cell[i, :, :], pbc=True))
+            else:
+                atoms.append(Atoms(numbers=d.species[lower:upper], positions=d.pos[lower:upper, :],
+                                   cell=d.cell[i, :, :], pbc=True))
     write(filename, atoms, append=True)
 
 
@@ -126,6 +130,7 @@ def convert_ase_atoms_to_data(all_configs: Sequence[Atoms]) -> Data:
     all_pos = torch.zeros((sum_n_atoms, 3))
     all_species = torch.zeros(sum_n_atoms, dtype=torch.int64)
     all_cell = torch.zeros((batch_size, 3, 3))
+    all_pos_is_fractional = torch.ones(batch_size, dtype=torch.bool)
 
     for config_index, config in enumerate(all_configs):
         species = config.get_atomic_numbers()
@@ -138,7 +143,8 @@ def convert_ase_atoms_to_data(all_configs: Sequence[Atoms]) -> Data:
         # cell[:] converts the ase.cell.Cell object to a numpy array.
         all_cell[config_index] = torch.tensor(cell[:])
 
-    return Data(pos=all_pos, cell=all_cell, species=all_species, ptr=ptr, n_atoms=n_atoms, batch=batch)
+    return Data(pos=all_pos, cell=all_cell, species=all_species, ptr=ptr, n_atoms=n_atoms, batch=batch,
+                pos_is_fractional=all_pos_is_fractional)
 
 
 # Copied from https://github.com/jiaor17/DiffCSP/blob/7121d159826efa2ba9500bf299250d96da37f146/diffcsp/common/data_utils.py
