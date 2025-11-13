@@ -15,8 +15,9 @@ from sklearn.neighbors import KernelDensity
 import tqdm
 import torch
 from torch_geometric.data import Data
+from torch_geometric.data.lightning import LightningDataset
 from omg.omg_lightning import OMGLightning
-from omg.datamodule.dataloader import OMGDataModule, OMGTorchDataset
+from omg.datamodule import OMGDataset
 from omg.globals import MAX_ATOM_NUM
 from omg.sampler.minimum_permutation_distance import correct_for_minimum_permutation_distance
 from omg.si.corrector import PeriodicBoundaryConditionsCorrector
@@ -42,7 +43,7 @@ class OMGTrainer(Trainer):
         """Constructor of the OMGTrainer class."""
         super().__init__(*args, **kwargs)
 
-    def visualize(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str,
+    def visualize(self, model: OMGLightning, datamodule: LightningDataset, xyz_file: str,
                   plot_name: str = "viz.pdf", skip_init: bool = False) -> None:
         """
         Plot and compare distributions over the prediction and generated dataset.
@@ -81,7 +82,7 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            OMG datamodule (argument required and automatically passed by lightning CLI).
+            Lightning datamodule (argument required and automatically passed by lightning CLI).
         :param xyz_file:
             XYZ file containing the generated structures.
             This argument has to be set on the command line.
@@ -108,26 +109,19 @@ class OMGTrainer(Trainer):
         else:
             init_atoms = None
         gen_atoms = xyz_reader(final_file)
-        ref_atoms = self._load_dataset_atoms(datamodule.predict_dataset,
-                                             datamodule.predict_dataset.convert_to_fractional)
+        ref_atoms = self._load_dataset_atoms(datamodule.pred_dataset)
 
         # Plot data
         self._plot_to_pdf(ref_atoms, init_atoms, gen_atoms, plot_name, model.use_min_perm_dist, symmetry_filename)
 
     @staticmethod
-    def _load_dataset_atoms(dataset: OMGTorchDataset, fractional: bool = True) -> list[Atoms]:
+    def _load_dataset_atoms(dataset: OMGDataset) -> list[Atoms]:
         """
         Load lmdb file atoms into a list of Atoms instances.
 
         :param dataset:
             Dataset to load atoms from.
-        :type dataset: OMGTorchDataset
-        :param fractional:
-            Whether the positions in the dataset are fractional coordinates.
-            If True, the positions are interpreted as fractional coordinates.
-            If False, the positions are interpreted as Cartesian coordinates.
-            Defaults to True.
-        :type fractional: bool
+        :type dataset: OMGDataset
 
         :return:
             List of Atoms instances.
@@ -138,7 +132,7 @@ class OMGTrainer(Trainer):
             assert len(struc.species) == struc.pos.shape[0]
             assert struc.pos.shape[1] == 3
             assert struc.cell[0].shape == (3, 3)
-            if fractional:
+            if bool(struc.pos_is_fractional):
                 atoms = Atoms(numbers=struc.species, scaled_positions=struc.pos, cell=struc.cell[0],
                               pbc=(True, True, True))
             else:
@@ -623,11 +617,12 @@ class OMGTrainer(Trainer):
             pdf.savefig()
             plt.close()
 
-    def csp_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str, skip_validation: bool = False,
-                    skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5, angle_tol: float = 10.0,
-                    number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
-                    xyz_file_prediction_data: Optional[str] = None, check_reduced: bool = True,
-                    result_name: str = "csp_metrics.json", plot_name: str = "rmsds.pdf") -> None:
+    def csp_metrics(self, model: OMGLightning, datamodule: LightningDataset, xyz_file: str,
+                    skip_validation: bool = False, skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5,
+                    angle_tol: float = 10.0, number_cpus: Optional[int] = None,
+                    upper_narity_limit: Optional[int] = None, xyz_file_prediction_data: Optional[str] = None,
+                    check_reduced: bool = True, result_name: str = "csp_metrics.json",
+                    plot_name: str = "rmsds.pdf") -> None:
         """
         Compute the crystal-structure prediction metrics for the generated structures.
 
@@ -651,7 +646,7 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            OMG datamodule (argument required and automatically passed by lightning CLI).
+            Lightning datamodule (argument required and automatically passed by lightning CLI).
         :param xyz_file:
             XYZ file containing the generated structures.
             This argument has to be set on the command line.
@@ -741,8 +736,7 @@ class OMGTrainer(Trainer):
                 raise FileNotFoundError(f"File {test_file} does not exist.")
             ref_atoms = xyz_reader(test_file)
         else:
-            ref_atoms = self._load_dataset_atoms(datamodule.predict_dataset,
-                                                 datamodule.predict_dataset.convert_to_fractional)
+            ref_atoms = self._load_dataset_atoms(datamodule.pred_dataset)
 
         gen_valid_atoms = ValidAtoms.get_valid_atoms(gen_atoms, desc="Validating generated structures",
                                                      skip_validation=skip_validation, number_cpus=number_cpus,
@@ -810,7 +804,7 @@ class OMGTrainer(Trainer):
             plt.savefig(plot_name)
             plt.close()
 
-    def dng_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str,
+    def dng_metrics(self, model: OMGLightning, datamodule: LightningDataset, xyz_file: str,
                     dataset_name: Optional[str] = None, number_cpus: Optional[int] = None,
                     xyz_file_prediction_data: Optional[str] = None, result_name: str = "dng_metrics.json") -> None:
         """
@@ -832,7 +826,7 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            OMG datamodule (argument required and automatically passed by lightning CLI).
+            Lightning datamodule (argument required and automatically passed by lightning CLI).
         :param xyz_file:
             XYZ file containing the generated structures.
             This argument has to be set on the command line.
@@ -883,8 +877,7 @@ class OMGTrainer(Trainer):
                 raise FileNotFoundError(f"File {test_file} does not exist.")
             ref_atoms = xyz_reader(test_file)
         else:
-            ref_atoms = self._load_dataset_atoms(datamodule.predict_dataset,
-                                                 datamodule.predict_dataset.convert_to_fractional)
+            ref_atoms = self._load_dataset_atoms(datamodule.pred_dataset)
 
         gen_valid_atoms = ValidAtoms.get_valid_atoms(gen_atoms, desc="Validating generated structures",
                                                      number_cpus=number_cpus)
@@ -962,7 +955,7 @@ class OMGTrainer(Trainer):
                 "cov_precision": cov_precision
             }, f, indent=4)
 
-    def fit_lattice(self, model: OMGLightning, datamodule: OMGDataModule) -> None:
+    def fit_lattice(self, model: OMGLightning, datamodule: LightningDataset) -> None:
         """
         Fit a log-normal distribution to the lattice lengths of the training dataset.
 
@@ -972,11 +965,11 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            OMG datamodule (argument required and automatically passed by lightning CLI).
+            Lightning datamodule (argument required and automatically passed by lightning CLI).
         :type datamodule: OMGDataModule
         """
         dataset = datamodule.train_dataset
-        atoms_list = self._load_dataset_atoms(dataset, dataset.convert_to_fractional)
+        atoms_list = self._load_dataset_atoms(dataset)
         a = []
         b = []
         c = []

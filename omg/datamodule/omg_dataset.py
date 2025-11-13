@@ -54,10 +54,12 @@ if __name__ == '__main__':
     print(dataset[0].pos)
     print(dataset[0].cell)
     print(dataset[0].property_dict)
+    print(dataset[0].pos_is_fractional)
     print(dataset[1].atomic_numbers)
     print(dataset[1].pos)
     print(dataset[1].cell)
     print(dataset[1].property_dict)
+    print(dataset[1].pos_is_fractional)
 
     # Specifying the sampler switches of the random shuffling in the dataloader.
     lightning_data_module = LightningDataset(
