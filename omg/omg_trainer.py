@@ -22,7 +22,7 @@ from omg.sampler.minimum_permutation_distance import correct_for_minimum_permuta
 from omg.si.corrector import PeriodicBoundaryConditionsCorrector
 from omg.utils import convert_ase_atoms_to_data, xyz_reader
 from omg.analysis import (get_coordination_numbers, get_coordination_numbers_species, get_cov, get_space_group,
-                          get_volume_frac, match_rmsds, ValidAtoms)
+                          get_volume_frac, match_rmsds, match_rate_and_rmsd_corr, ValidAtoms)
 
 
 class OMGTrainer(Trainer):
@@ -698,6 +698,21 @@ class OMGTrainer(Trainer):
             Defaults to 10.0.
             This argument can be optionally set on the command line.
         :type angle_tol: float
+        :param METRe:
+            Defaults to True.
+            If True, the match-everyone-to-reference (METRe) match rate is computed instead of standard one-to-one match rate.
+            If there are no polymorphs, METRe will give the same match rate as the standard one-to-one match rate.
+            Should be avoided if there are duplicate structures in the dataset.
+            This argument can be optionally set on the command line.
+        :type METRe: bool
+        :param cRMSE:
+            Defaults to True.
+            If True, the corrected RMSE is returned in which stol is assigned as the RMSE
+            for non-matching structures.
+            Can be used with either choice of match rate (METRe or standard).
+            If all structures match, cRMSE will be the same as RMSE.
+            This argument can be optionally set on the command line.
+        :type cRMSE: bool
         :param number_cpus:
             Number of CPUs to use for multiprocessing. If None, use os.cpu_count().
             Defaults to None.
@@ -774,88 +789,68 @@ class OMGTrainer(Trainer):
             print(f"Rate of valid structures in generated dataset: "
                   f"{100 * sum(va.valid for va in gen_valid_atoms) / len(gen_valid_atoms)}%.")
 
-        if not skip_match and not METRe:
-            rmsds, valid_rmsds = match_rmsds(
-                gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
-                check_reduced=check_reduced)
-            assert len(rmsds) == len(valid_rmsds) == len(gen_valid_atoms)
-
-            match_count = sum(rmsd is not None for rmsd in rmsds)
-            match_rate = match_count / len(gen_valid_atoms)
-            filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
-            mean_rmsd = np.mean(filtered_rmsds)
-
-            valid_match_count = sum(rmsd is not None for rmsd in valid_rmsds)
-            valid_match_rate = valid_match_count / len(gen_valid_atoms)
-            filtered_valid_rmsds = [rmsd for rmsd in valid_rmsds if rmsd is not None]
-            mean_valid_rmsd = np.mean(filtered_valid_rmsds)
-
-            print(f"The match rate between all generated structures and the prediction dataset is "
-                  f"{100.0 * match_rate}%.")
-            print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), between all generated "
-                  f"structures and the prediction dataset is {mean_rmsd}.")
-            print()
-            print(f"The match rate between valid generated structures and the valid prediction dataset is "
-                  f"{100.0 * valid_match_rate}%.")
-            print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), between valid generated "
-                  f"structures and the valid prediction dataset is {mean_valid_rmsd}.")
-
-            with open(result_name, "w") as f:
-                json.dump({
-                    "match_rate": match_rate,
-                    "mean_RMSE": mean_rmsd,
-                    "valid_match_rate": valid_match_rate,
-                    "valid_mean_RMSE": mean_valid_rmsd
-                }, f, indent=4)
-
-        elif not skip_match and METRe:
-            fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rate_and_rmsd_corr(
-                gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
-                check_reduced=check_reduced)
-
-            assert len(rmsds) == len(val_rmsds) == len(gen_valid_atoms)
-
-            print(f"The match everyone to reference (METRe) rate for all generated structures is {100.0 * fmr}%.")
-            print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
-                f"and all generated structures is {frmsd}.")
-            print()
-            print(f"The match everyone to reference (METRe) rate for all valid generated structures is {100.0 * vmr}%.")
-            print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
-                f"and all valid generated structures is {vrmsd}.")
-
-            with open(result_name, "w") as f:
-                json.dump({
-                    "METRe_rate": fmr,
-                    "mean_RMSE": frmsd,
-                    "valid_METRe_rate": vmr,
-                    "valid_mean_RMSE": vrmsd,
-                }, f, indent=4)
-        
-        if cRMSE:
-            if not METRe: # need to compute cRMSE for non-METRe case
-                corr_rmsds = [rmsd if rmsd is not None else stol for rmsd in rmsds]
-                corr_valid_rmsds = [rmsd if rmsd is not None else stol for rmsd in valid_rmsds]
-                corr_rmsd = np.mean(corr_rmsds)
-                vcorr_rmsd = np.mean(corr_valid_rmsds)
-            
-            print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
-                f"with stol={stol} between all generated structures and the full dataset is {corr_rmsd}.")
-            print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
-                f"with stol={stol} between all valid generated structures and the valid dataset is {vcorr_rmsd}.")
-            
-            with open(result_name, "r") as f:
-                data = json.load(f)
-            data.update({
-                "cRMSE": corr_rmsd,
-                "valid_cRMSE": vcorr_rmsd,
-            })
-            with open(result_name, "w") as f:
-                json.dump(data, f, indent=4)
-
         if not skip_match:
-            if METRe:
+            if not METRe:
+                fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rmsds(
+                    gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
+                    check_reduced=check_reduced)
+                match_type = "match_rate"
+                filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
+                filtered_valid_rmsds = [rmsd for rmsd in val_rmsds if rmsd is not None]
+
+                assert len(rmsds) == len(val_rmsds) == len(gen_valid_atoms)
+
+                print(f"The match rate between all generated structures and the prediction dataset is "
+                        f"{100.0 * fmr}%.")
+                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), between all generated "
+                        f"structures and the prediction dataset is {frmsd}.")
+                print()
+                print(f"The match rate between valid generated structures and the valid prediction dataset is "
+                        f"{100.0 * vmr}%.")
+                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), between valid generated "
+                        f"structures and the valid prediction dataset is {vrmsd}.")
+
+            elif METRe:
+                fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rate_and_rmsd_corr(
+                    gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
+                    check_reduced=check_reduced)
+                match_type = "METRe_rate"
                 filtered_rmsds = rmsds[~np.isnan(rmsds)]
                 filtered_valid_rmsds = val_rmsds[~np.isnan(val_rmsds)]
+
+                assert len(rmsds) == len(val_rmsds) == len(gen_valid_atoms)
+
+                print(f"The match everyone to reference (METRe) rate for all generated structures is {100.0 * fmr}%.")
+                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
+                    f"and all generated structures is {frmsd}.")
+                print()
+                print(f"The match everyone to reference (METRe) rate for all valid generated structures is {100.0 * vmr}%.")
+                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
+                    f"and all valid generated structures is {vrmsd}.")
+
+            with open(result_name, "w") as f:
+                json.dump({
+                    "{}".format(match_type): fmr,
+                    "mean_RMSE": frmsd,
+                    "valid_{}".format(match_type): vmr,
+                    "valid_mean_RMSE": vrmsd
+                }, f, indent=4)
+        
+            if cRMSE:
+                print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
+                    f"with stol={stol} between all generated structures and the full dataset is {corr_rmsd}.")
+                print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
+                    f"with stol={stol} between all valid generated structures and the valid dataset is {vcorr_rmsd}.")
+                
+                with open(result_name, "r") as f:
+                    data = json.load(f)
+                data.update({
+                    "cRMSE": corr_rmsd,
+                    "valid_cRMSE": vcorr_rmsd,
+                })
+                with open(result_name, "w") as f:
+                    json.dump(data, f, indent=4)
+                
             plt.figure()
             bandwidth = np.std(filtered_rmsds) * len(filtered_rmsds) ** (-1 / 5)  # Scott's rule.
             filtered_rmsds = np.array(filtered_rmsds)[:, np.newaxis]

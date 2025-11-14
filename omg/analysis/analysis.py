@@ -15,6 +15,7 @@ from tqdm import tqdm
 from omg.analysis.valid_atoms import ValidAtoms
 from omg.globals import MAX_ATOM_NUM
 from omg.utils import StandardScaler
+from itertools import repeat
 
 
 # Suppress spglib warnings.
@@ -522,7 +523,7 @@ def _get_match_and_rmsd(atoms_one: ValidAtoms, atoms_two: ValidAtoms, ltol: floa
     return None
 
 
-def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequence[ValidAtoms], ltol: float,
+def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: List[Tuple[int, ValidAtoms]], ltol: float,
                                  stol: float, angle_tol: float,
                                  check_reduced: bool) -> Optional[List[Tuple[float, int]]]:
     """
@@ -546,8 +547,8 @@ def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequ
         First structure.
     :type atoms_one: ValidAtoms
     :param sequence_atoms_two:
-        Sequence of structures.
-    :type sequence_atoms_two: Sequence[ValidAtoms]
+        List of tuples each containing the index and the second structure.
+    :type sequence_atoms_two: List[Tuple[int, ValidAtoms]]
     :param ltol:
         Fractional length tolerance for pymatgen's StructureMatcher.
     :type ltol: float
@@ -568,8 +569,12 @@ def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequ
         structure.
     :rtype: Optional[List[Tuple[float, int]]]
     """
+    if not sequence_atoms_two:
+        return None
+
     rmsds = []
-    for index, atoms_two in enumerate(sequence_atoms_two):
+
+    for index, atoms_two in sequence_atoms_two:
         res = _get_match_and_rmsd(atoms_one, atoms_two, ltol, stol, angle_tol, check_reduced)
         if res is not None:
             rmsds.append((res, index))
@@ -582,7 +587,7 @@ def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequ
 def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms], ltol: float = 0.2,
                 stol: float = 0.3, angle_tol: float = 5.0, number_cpus: Optional[int] = None,
                 check_reduced: bool = True,
-                enable_progress_bar: bool = True) -> Tuple[list[Optional[float]], list[Optional[float]]]:
+                enable_progress_bar: bool = True) -> Tuple[float, float, float, float, List[Optional[float]], List[Optional[float]], float, float]:
     """
     Match the structures in the first sequence of validated atoms with the structures at the same index in the second
     sequence of validated atoms and return the root-mean-square displacements between the matching structures.
@@ -633,8 +638,9 @@ def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms]
     :type enable_progress_bar: bool
 
     :return:
-        (List of root-mean-square displacements, List of valid root-mean-square displacements).
-    :rtype: Tuple[list[Optional[float]], list[Optional[float]]]
+        Tuple of match rate, mean RMSD, valid match rate, mean valid RMSD, List of root-mean-square displacements, List of valid root-mean-square displacements,
+        corrected RMSD, valid corrected RMSD.
+    :rtype: Tuple[float, float, float, float, List[Optional[float]], List[Optional[float]], float, float]
 
     :raises ValueError:
         If the number of structures in the first list is larger than the number of structures in the reference list.
@@ -667,7 +673,25 @@ def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms]
     valid_res = [r if atoms.valid and ref_atoms.valid else None
                  for r, atoms, ref_atoms in zip(res, atoms_list, ref_list)]
 
-    return res, valid_res
+    match_count = sum(rmsd is not None for rmsd in res)
+    filtered_rmsds = [rmsd for rmsd in res if rmsd is not None]
+    mean_rmsd = np.mean(filtered_rmsds)
+
+    valid_match_count = sum(rmsd is not None for rmsd in valid_res)
+    filtered_valid_rmsds = [rmsd for rmsd in valid_res if rmsd is not None]
+    valid_mean_rmsd = np.mean(filtered_valid_rmsds)
+
+    # counting corrected RMSE in which non-matched structures are penalized
+    corr_rmsds = [rmsd if rmsd is not None else stol for rmsd in res]
+    corr_valid_rmsds = [rmsd if rmsd is not None else stol for rmsd in valid_res]
+    corr_rmsd = np.mean(corr_rmsds)
+    valid_corr_rmsd = np.mean(corr_valid_rmsds)
+
+    return (match_count / len(atoms_list), float(mean_rmsd),
+            valid_match_count / len(atoms_list), float(valid_mean_rmsd),
+            res, valid_res,
+            float(corr_rmsd),
+            float(valid_corr_rmsd))
 
 def match_rate_and_rmsd_corr(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms], ltol: float = 0.2,
                 stol: float = 0.3, angle_tol: float = 5.0, number_cpus: Optional[int] = None,
@@ -745,14 +769,24 @@ def match_rate_and_rmsd_corr(atoms_list: Sequence[ValidAtoms], ref_list: Sequenc
     cpu_count = number_cpus if number_cpus is not None else os.cpu_count()
     
     # We cannot use lambda functions so we use (partial) global functions instead.
-    match_func = partial(_get_match_and_rmsd_sequence, sequence_atoms_two=ref_list, ltol=ltol, stol=stol,
+    match_func = partial(_get_match_and_rmsd_sequence, ltol=ltol, stol=stol,
                             angle_tol=angle_tol, check_reduced=check_reduced)
+
+    def correct_ref_list():
+        # Iterable with relevant reference atoms
+        for atoms in atoms_list:
+            # Find relevant compositions and global indices in ref_list and yield them in a list
+            yield [(idx, ref_atoms) for idx, ref_atoms in enumerate(ref_list) if _element_check(atoms.atoms, ref_atoms.atoms, check_reduced=True)]
+
     if cpu_count > 1:
-        res = process_map(match_func, atoms_list, desc="Computing match rate and RMSD",
+        ref_iter = correct_ref_list()
+        res = process_map(match_func, atoms_list, ref_iter, desc="Computing METRe rate and RMSD",
                             chunksize=max(min(len(atoms_list) // cpu_count, 100), 1), max_workers=cpu_count,
                             disable=not enable_progress_bar)
     else:
-        res = list(map(match_func, atoms_list))
+        full_ref_iter = list(enumerate(ref_list))
+        res = list(map(match_func, tqdm(atoms_list, desc="Computing METRe rate and RMSD", disable=not enable_progress_bar),
+                       repeat(full_ref_iter)))
     assert len(res) == len(atoms_list)
 
     rmsds_ref = np.full((len(ref_list),), np.nan, dtype=np.float32)

@@ -24,36 +24,36 @@ def c4():
 
 
 def test_crystals_different(c1, c2, c3, c4):
-    assert sum(r is not None for r in match_rmsds([c1], [c2], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c1], [c3], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c1], [c4], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c2], [c1], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c2], [c3], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c2], [c4], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c3], [c1], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c3], [c2], enable_progress_bar=False)[0]) == 0
-    assert sum(r is not None for r in match_rmsds([c3], [c4], enable_progress_bar=False)[0]) == 0
+    assert sum(r is not None for r in match_rmsds([c1], [c2], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c1], [c3], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c1], [c4], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c2], [c1], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c2], [c3], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c2], [c4], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c3], [c1], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c3], [c2], enable_progress_bar=False)[4]) == 0
+    assert sum(r is not None for r in match_rmsds([c3], [c4], enable_progress_bar=False)[4]) == 0
 
 
 def test_match_rate(c1, c2, c3, c4):
     assert sum(r is not None for r in match_rmsds(
-        [c1, c2, c3, c4], [c1, c2, c3, c4], enable_progress_bar=False)[0]) == 4
+        [c1, c2, c3, c4], [c1, c2, c3, c4], enable_progress_bar=False)[4]) == 4
     assert sum(r is not None for r in match_rmsds(
-        [c1, c2], [c3, c4], enable_progress_bar=False)[0]) == 0
+        [c1, c2], [c3, c4], enable_progress_bar=False)[4]) == 0
     assert sum(r is not None for r in match_rmsds(
-        [c1, c2, c3, c4], [c1, c1, c1, c1], enable_progress_bar=False)[0]) == 1
+        [c1, c2, c3, c4], [c1, c1, c1, c1], enable_progress_bar=False)[4]) == 1
     assert sum(r is not None for r in match_rmsds(
         [c1, c2, c1, c1, c2, c3, c1, c4, c4, c2, c1, c3, c4, c2, c1, c2, c4],
         [c1, c2, c3, c4, c1, c2, c3, c4, c1, c2, c3, c4, c1, c2, c3, c4, c1],
-        enable_progress_bar=False)[0]) == 5
+        enable_progress_bar=False)[4]) == 5
     assert sum(r is not None for r in match_rmsds(
         [c1, c2, c1, c1, c2, c3, c1, c4, c4, c2, c1, c3, c4, c2, c1, c2, c4],
         [c1, c2, c1, c2, c1, c2, c1, c2, c1, c2, c1, c2, c1, c2, c1, c2, c1],
-        enable_progress_bar=False)[0]) == 9
+        enable_progress_bar=False)[4]) == 9
     assert sum(r is not None for r in match_rmsds(
         [c1, c2],
         [c1, c2, c1, c1, c2, c3, c1, c4, c4, c2, c1, c3, c4, c2, c1, c2, c4],
-        enable_progress_bar=False)[0]) == 2
+        enable_progress_bar=False)[4]) == 2
 
 
 if __name__ == '__main__':
