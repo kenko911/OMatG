@@ -9,7 +9,7 @@
 [![Lightning](https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white)](https://github.com/Lightning-AI/lightning)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![Static Badge](https://img.shields.io/badge/Version-1.0.0-blue)
+![Static Badge](https://img.shields.io/badge/Version-1.1.0-blue)
 
 A state-of-the-art generative model for crystal structure prediction and *de novo* generation of inorganic crystals. 
 This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) (also available 
@@ -353,10 +353,10 @@ If the code in this repository changes, the command `pip install .` has to be ex
 change the code of the installed package. If you installed `omg` in editable mode, any changes in code are directly 
 available in the installed `omg` package.
 
-> **NOTE**: Installing PyTorch 2.7 based on the correct compute platform as described on the 
+> **NOTE**: Installing PyTorch 2.8 based on the correct compute platform as described on the 
 > [PyTorch webpage](https://pytorch.org/get-started/locally/) before installing `omg` can help minimize sources of 
 > installation errors. The same applies to 
-> [PyG 2.6](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) and 
+> [PyG 2.7](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) and 
 > [PyTorch Scatter 2.1](https://github.com/rusty1s/pytorch_scatter?tab=readme-ov-file).
 
 Installing the `omg` package as described above provides the `omg` command for training, generation, and evaluation.
