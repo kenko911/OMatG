@@ -989,7 +989,7 @@ class OMGTrainer(Trainer):
         print("Standard deviations of the log of the distributions: ", shape_a, shape_b, shape_c)
         print("Means of the log of the distributions: ", log(scale_a), log(scale_b), log(scale_c))
 
-    def create_compositions(self, model: OMGLightning, datamodule: OMGDataModule, compositions: Sequence[str] | str,
+    def create_compositions(self, model: OMGLightning, datamodule: LightningDataset, compositions: Sequence[str] | str,
                             lmdb_file: str = "compositions.lmdb", repeats: int = 1) -> None:
         """
         Create an LMDB file containing dummy structures with the given compositions.
@@ -998,7 +998,7 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            OMG datamodule (argument required and automatically passed by lightning CLI).
+            Lightning datamodule (argument required and automatically passed by lightning CLI).
         :type datamodule: OMGDataModule
         :param compositions:
             List of compositions (as strings) to create dummy structures for.
