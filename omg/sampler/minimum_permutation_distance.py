@@ -1,10 +1,10 @@
 from scipy.optimize import linear_sum_assignment
 import torch
-from torch_geometric.data import Data
+from omg.datamodule import OMGData
 from omg.si.corrector import Corrector
 
 
-def correct_for_minimum_permutation_distance(x_0: Data, x_1: Data, corrector: Corrector,
+def correct_for_minimum_permutation_distance(x_0: OMGData, x_1: OMGData, corrector: Corrector,
                                              switch_species: bool = False) -> None:
     """
     For every configuration in the batch, permute the fractional coordinates (and species) in x_0 so that it minimizes
@@ -22,11 +22,11 @@ def correct_for_minimum_permutation_distance(x_0: Data, x_1: Data, corrector: Co
     species or not does not yield any difference.
 
     :param x_0:
-        Batch of initial configurations stored in a torch_geometric.data.Data object.
-    :type x_0: torch_geometric.data.Data
+        Batch of initial configurations stored in a OMGData object.
+    :type x_0: OMGData
     :param x_1:
-        Batch of final configurations stored in a torch_geometric.data.Data object.
-    :type x_1: torch_geometric.data.Data
+        Batch of final configurations stored in a OMGData object.
+    :type x_1: OMGData
     :param corrector:
         Corrector that corrects the distances (for instance, to consider periodic boundary conditions).
     :type corrector: Corrector
@@ -57,7 +57,7 @@ def correct_for_minimum_permutation_distance(x_0: Data, x_1: Data, corrector: Co
             x_0.species[ptr[i]:ptr[i + 1]] = x_0.species[ptr[i]:ptr[i + 1]][col]
 
 
-def _distance_matrix(x_0: torch.tensor, x_1: torch.tensor, corrector: Corrector) -> torch.tensor:
+def _distance_matrix(x_0: torch.Tensor, x_1: torch.Tensor, corrector: Corrector) -> torch.Tensor:
     """
     Compute the distance matrix between two sets of n positions.
 
@@ -66,17 +66,17 @@ def _distance_matrix(x_0: torch.tensor, x_1: torch.tensor, corrector: Corrector)
 
     :param x_0:
         First set of positions of shape (n, 3).
-    :type x_0: torch.tensor
+    :type x_0: torch.Tensor
     :param x_1:
         Second set of positions of shape (n, 3).
-    :type x_1: torch.tensor
+    :type x_1: torch.Tensor
     :param corrector:
         Corrector that corrects the distances (for instance, to consider periodic boundary conditions).
     :type corrector: Corrector
 
     :return:
         Distance matrix of shape (n, n).
-    :rtype distance: torch.tensor
+    :rtype distance: torch.Tensor
     """
     assert x_0.shape == x_1.shape
     assert len(x_0.shape) == 2
