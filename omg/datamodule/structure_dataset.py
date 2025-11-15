@@ -72,9 +72,18 @@ class StructureDataset(Dataset):
         Whether to apply a Niggli reduction to the returned structures.
         Defaults to False.
     :type niggli_reduce: bool
-    :param parser_kwargs:
-        Additional keyword arguments to pass to the specific file format parser methods.
-    :type parser_kwargs: Any
+    :param cdvae_preprocessing:
+        Whether to preprocess the structures to match the conventions used in CDVAE when reading from CSV files.
+        When reading from LMDB files, this option is ignored.
+        This applies the Niggli reduction of PyMatgen.
+        Defaults to None.
+    :type cdvae_preprocessing: Optional[bool]
+    :param mattergen_preprocessing:
+        Whether to preprocess the structures to match the conventions used in MatterGen when reading from CSV files.
+        When reading from LMDB files, this option is ignored.
+        This applies the primitive cell extraction followed by the Niggli reduction of PyMatgen.
+        Defaults to None.
+    :type mattergen_preprocessing: Optional[bool]
 
     :raises KeyError:
         If any of the property keys are not found in the structure properties.
@@ -84,7 +93,8 @@ class StructureDataset(Dataset):
 
     def __init__(self, file_path: str, property_keys: Optional[Sequence[str]] = None,
                  floating_point_precision: Union[int, str, None] = "64-true", lazy_storage: bool = True,
-                 convert_to_fractional: bool = True, niggli_reduce: bool = False, **parser_kwargs: Any) -> None:
+                 convert_to_fractional: bool = True, niggli_reduce: bool = False,
+                 cdvae_preprocessing: Optional[bool] = None, mattergen_preprocessing: Optional[bool] = None) -> None:
         """Constructor for the StructureDataset class."""
         super().__init__()
         self._torch_precision = self._get_torch_precision(floating_point_precision)
@@ -104,12 +114,18 @@ class StructureDataset(Dataset):
                 raise FileNotFoundError(f"File path {file_path} neither exists on its own or within the omg package.")
 
         if path.suffix == ".lmdb":
+            if cdvae_preprocessing is not None or mattergen_preprocessing is not None:
+                warnings.warn("CDVAE and MatterGen preprocessing options are ignored when reading from LMDB files.")
             # noinspection PyArgumentList
             self._file_path, self._number_structures, self._structures = self._from_lmdb(
-                existing_file_path, self._property_keys, return_structures=not lazy_storage, **parser_kwargs)
+                existing_file_path, self._property_keys, return_structures=not lazy_storage)
         elif path.suffix == ".csv":
+            if cdvae_preprocessing is None or mattergen_preprocessing is None:
+                raise ValueError("When reading from CSV files, both cdvae_preprocessing and mattergen_preprocessing "
+                                 "options must be specified.")
             self._file_path, self._number_structures, self._structures = self._from_csv(
-                existing_file_path, self._property_keys, return_structures=not lazy_storage, **parser_kwargs)
+                existing_file_path, self._property_keys, return_structures=not lazy_storage,
+                cdvae_preprocessing=cdvae_preprocessing, mattergen_preprocessing=mattergen_preprocessing)
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb and .csv.")
 
