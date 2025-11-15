@@ -50,8 +50,8 @@ class OMGCLI(LightningCLI):
         """
         parser.link_arguments("data.batch_size", "model.sampler.init_args.batch_size")
         parser.link_arguments("trainer.precision",
-                              "data.train_dataset.init_args.dataset.init_args.trainer_precision")
+                              "data.train_dataset.init_args.floating_point_precision")
         parser.link_arguments("trainer.precision",
-                                "data.val_dataset.init_args.dataset.init_args.trainer_precision")
+                                "data.val_dataset.init_args.floating_point_precision")
         parser.link_arguments("trainer.precision",
-                                "data.predict_dataset.init_args.dataset.init_args.trainer_precision")
+                                "data.pred_dataset.init_args.floating_point_precision")

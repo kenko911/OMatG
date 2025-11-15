@@ -18,9 +18,8 @@ from sklearn.neighbors import KernelDensity
 import tqdm
 import torch
 from torch_geometric.data import Data
-from torch_geometric.data.lightning import LightningDataset
 from omg.omg_lightning import OMGLightning
-from omg.datamodule import OMGDataset
+from omg.datamodule import OMGDataset, OMGDataModule
 from omg.globals import MAX_ATOM_NUM
 from omg.sampler.minimum_permutation_distance import correct_for_minimum_permutation_distance
 from omg.si.corrector import PeriodicBoundaryConditionsCorrector
@@ -46,7 +45,7 @@ class OMGTrainer(Trainer):
         """Constructor of the OMGTrainer class."""
         super().__init__(*args, **kwargs)
 
-    def visualize(self, model: OMGLightning, datamodule: LightningDataset, xyz_file: str,
+    def visualize(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str,
                   plot_name: str = "viz.pdf", skip_init: bool = False) -> None:
         """
         Plot and compare distributions over the prediction and generated dataset.
@@ -85,7 +84,8 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            Lightning datamodule (argument required and automatically passed by lightning CLI).
+            OMG datamodule (argument required and automatically passed by lightning CLI).
+        :type datamodule: OMGDataModule
         :param xyz_file:
             XYZ file containing the generated structures.
             This argument has to be set on the command line.
@@ -620,7 +620,7 @@ class OMGTrainer(Trainer):
             pdf.savefig()
             plt.close()
 
-    def csp_metrics(self, model: OMGLightning, datamodule: LightningDataset, xyz_file: str,
+    def csp_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str,
                     skip_validation: bool = False, skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5,
                     angle_tol: float = 10.0, number_cpus: Optional[int] = None,
                     upper_narity_limit: Optional[int] = None, xyz_file_prediction_data: Optional[str] = None,
@@ -649,7 +649,8 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            Lightning datamodule (argument required and automatically passed by lightning CLI).
+            OMG datamodule (argument required and automatically passed by lightning CLI).
+        :type datamodule: OMGDataModule
         :param xyz_file:
             XYZ file containing the generated structures.
             This argument has to be set on the command line.
@@ -807,7 +808,7 @@ class OMGTrainer(Trainer):
             plt.savefig(plot_name)
             plt.close()
 
-    def dng_metrics(self, model: OMGLightning, datamodule: LightningDataset, xyz_file: str,
+    def dng_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str,
                     dataset_name: Optional[str] = None, number_cpus: Optional[int] = None,
                     xyz_file_prediction_data: Optional[str] = None, result_name: str = "dng_metrics.json") -> None:
         """
@@ -829,7 +830,8 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            Lightning datamodule (argument required and automatically passed by lightning CLI).
+            OMG datamodule (argument required and automatically passed by lightning CLI).
+        :type datamodule: OMGDataModule
         :param xyz_file:
             XYZ file containing the generated structures.
             This argument has to be set on the command line.
@@ -958,7 +960,7 @@ class OMGTrainer(Trainer):
                 "cov_precision": cov_precision
             }, f, indent=4)
 
-    def fit_lattice(self, model: OMGLightning, datamodule: LightningDataset) -> None:
+    def fit_lattice(self, model: OMGLightning, datamodule: OMGDataModule) -> None:
         """
         Fit a log-normal distribution to the lattice lengths of the training dataset.
 
@@ -968,7 +970,7 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            Lightning datamodule (argument required and automatically passed by lightning CLI).
+            OMG datamodule (argument required and automatically passed by lightning CLI).
         :type datamodule: OMGDataModule
         """
         dataset = datamodule.train_dataset
@@ -989,7 +991,7 @@ class OMGTrainer(Trainer):
         print("Standard deviations of the log of the distributions: ", shape_a, shape_b, shape_c)
         print("Means of the log of the distributions: ", log(scale_a), log(scale_b), log(scale_c))
 
-    def create_compositions(self, model: OMGLightning, datamodule: LightningDataset, compositions: Sequence[str] | str,
+    def create_compositions(self, model: OMGLightning, datamodule: OMGDataModule, compositions: Sequence[str] | str,
                             lmdb_file: str = "compositions.lmdb", repeats: int = 1) -> None:
         """
         Create an LMDB file containing dummy structures with the given compositions.
@@ -998,7 +1000,7 @@ class OMGTrainer(Trainer):
             OMG model (argument required and automatically passed by lightning CLI).
         :type model: OMGLightning
         :param datamodule:
-            Lightning datamodule (argument required and automatically passed by lightning CLI).
+            OMG datamodule (argument required and automatically passed by lightning CLI).
         :type datamodule: OMGDataModule
         :param compositions:
             List of compositions (as strings) to create dummy structures for.
