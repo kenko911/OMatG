@@ -1,11 +1,12 @@
 from typing import Any
+from torch_geometric.data import DataLoader
 from torch_geometric.data.lightning import LightningDataset
 from omg.datamodule import OMGDataset, StructureDataset
 
 
 class OMGDataModule(LightningDataset):
     def __init__(self, train_dataset: StructureDataset, val_dataset: StructureDataset, pred_dataset: StructureDataset,
-                 batch_size: int = 1, **kwargs: Any) -> None:
+                 **kwargs: Any) -> None:
         """
         Lightning DataModule that wraps StructureDataset objects for training, validation, and prediction into
         OMGDataset objects that are compatible with Pytorch Geometric.
@@ -24,16 +25,14 @@ class OMGDataModule(LightningDataset):
         :param pred_dataset:
             StructureDataset for prediction.
         :type pred_dataset: StructureDataset
-        :param batch_size:
-            Batch size for data loading. Default is 1.
-        :type batch_size: int
         :param kwargs:
             Additional keyword arguments to pass to the LightningDataset constructor which are in turn passed to the
-            data loaders.
+            PyTorch Geometric and PyTorch data loaders.
         :type kwargs: Any
         """
         train_omg_dataset = OMGDataset(train_dataset)
         val_omg_dataset = OMGDataset(val_dataset)
         pred_omg_dataset = OMGDataset(pred_dataset)
+        _ = DataLoader(train_omg_dataset, **kwargs)  # This allows Lightning CLI to infer the allowed kwargs.
         super().__init__(train_dataset=train_omg_dataset, val_dataset=val_omg_dataset, pred_dataset=pred_omg_dataset,
-                         batch_size=batch_size, **kwargs)
+                         **kwargs)
