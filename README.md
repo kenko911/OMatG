@@ -379,7 +379,10 @@ For convenience, we include several material datasets that can be used for train
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
-Additional datasets can be found at the ColabFit [HuggingFace link](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter). These include: 
+<details>
+<summary><b>Expand this section for information on additional contributed datasets, including polymorph-aware, duplicate-pruned, and overfitting datasets, which can be found at the ColabFit [HuggingFace link](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter).</b></summary>
+
+We provide the following newly cultivated datasets:
 - The duplicate-pruned versions of *Carbon-24*, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
 - The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
 - Datasets with explicitly labeled chiral pairs: 
@@ -388,6 +391,8 @@ Additional datasets can be found at the ColabFit [HuggingFace link](https://hugg
 - Overfitting datasets for testing model handling of symmetries: 
   - *Carbon-X*, a dataset with duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
   - *Carbon-NXL*, a dataset with duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
+
+</details>
 
 ## Training
 
