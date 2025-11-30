@@ -377,8 +377,7 @@ For convenience, we include several material datasets that can be used for train
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
-Additional datasets can be found at the [HuggingFace link](https://huggingface.co/collections/colabfit/
-datasets-all-that-structure-matches-does-not-glitter) associated with this project. These include: 
+Additional datasets can be found at the [HuggingFace link](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter) associated with this project. These include: 
 - The duplicate-pruned versions of *Carbon-24*, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
 - The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
 - Datasets with explicitly labeled chiral pairs: 
