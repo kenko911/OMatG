@@ -13,7 +13,7 @@
 
 A state-of-the-art generative model for crystal structure prediction and *de novo* generation of inorganic crystals. 
 This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) (also available 
-on [arXiv](https://arxiv.org/abs/2502.02582)) which should be [cited](#citing-omatg) when using it.
+on [arXiv](https://arxiv.org/abs/2502.02582)) and the [NeurIPS 2025 paper](https://openreview.net/forum?id=ig9ujp50D4) (also available on [arXiv](https://arxiv.org/abs/2509.12178)) which should be [cited](#citing-omatg) when using it. 
 
 #### Crystal structure prediction of GaTe:
 
@@ -61,6 +61,8 @@ this notebook is part of a more general workshop on generative modeling and thus
 fashion pieces. The relevant beginner-friendly notebook that introduces generative modeling with short coding exercises
 is also available on [Kaggle](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion) 
 (with solutions [here](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion-sols)).
+
+A tutorial notebook providing a crystallography primer is available on [Kaggle](https://www.kaggle.com/code/mayamartirossyan/crystal-representations-primer).
 
 <details>
 <summary><b>Expand this section for a brief introduction to the theoretical background of OMatG.</b></summary>
@@ -377,7 +379,7 @@ For convenience, we include several material datasets that can be used for train
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
-Additional datasets can be found at the [HuggingFace link](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter) associated with this project. These include: 
+Additional datasets can be found at the ColabFit [HuggingFace link](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter). These include: 
 - The duplicate-pruned versions of *Carbon-24*, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
 - The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
 - Datasets with explicitly labeled chiral pairs: 
@@ -446,7 +448,7 @@ This command computes a rate of matching structures using PyMatGen [`StructureMa
 
 By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, the match-everyone-to-reference rate can be computed instead by using `METRe=True`, in which case the best match from all generated structures are counted with respect to each structure in the prediction dataset.
 
-By default, the average corrected root-mean square error (cRMSE) is computed in addition to the average root-mean square displacement. This metric replaces None values in the list of root-mean square displacements for non-matching structures with the site-tolerance `stol` from StructureMatcher.
+By default, the average corrected root-mean square error (`cRMSE`) is computed in addition to the average root-mean square displacement. This metric replaces None values in the list of root-mean square displacements for non-matching structures with the site-tolerance `stol` from StructureMatcher.
 
 By default, this method first validates the generated structures and the structures in the prediction dataset
 based on volume, structure, composition, and fingerprint checks (see [`ValidAtoms`](omg/analysis/valid_atoms.py) class), 
