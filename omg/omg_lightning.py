@@ -7,7 +7,7 @@ import lightning
 import numpy as np
 from scipy.stats import wasserstein_distance
 import torch
-from omg.analysis import get_coordination_numbers, get_cov, match_rate_and_rmsd_corr, ValidAtoms
+from omg.analysis import get_coordination_numbers, get_cov, match_rmsds, ValidAtoms
 from omg.datamodule import OMGData
 from omg.globals import SMALL_TIME, BIG_TIME
 from omg.model.model import Model
@@ -351,7 +351,7 @@ class OMGLightning(lightning.LightningModule):
             ref_valid_atoms = ValidAtoms.get_valid_atoms(self.reference_atoms, desc="Validating reference structures",
                                                          skip_validation=True, number_cpus=1)
 
-            match_rate, mean_rmsd, _, _, _, _, corr_rmsd, _ = match_rate_and_rmsd_corr(gen_valid_atoms, ref_valid_atoms, ltol=0.3, stol=0.5, angle_tol=10.0,
+            match_rate, mean_rmsd, _, _, _, _, corr_rmsd, _ = match_rmsds(gen_valid_atoms, ref_valid_atoms, ltol=0.3, stol=0.5, angle_tol=10.0,
                                              number_cpus=self.number_cpus, enable_progress_bar=True)
 
             self.log("match_rate", float(match_rate), sync_dist=True)

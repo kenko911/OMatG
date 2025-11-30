@@ -377,6 +377,17 @@ For convenience, we include several material datasets that can be used for train
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
+Additional datasets can be found at the [HuggingFace link](https://huggingface.co/collections/colabfit/
+datasets-all-that-structure-matches-does-not-glitter) associated with this project. These include: 
+- The duplicate-pruned versions of *Carbon-24*, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
+- The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
+- Datasets with explicitly labeled chiral pairs: 
+  - *Carbon-24-unique-with-enantiomorphs*, a duplicate-pruned version of *Carbon-24* where enantiomorph pairs are treated as distinct structures and labeled. In *Carbon-24-unique*, only one of each pair is included because StructureMatcher cannot distinguish between chiral pairs.
+  - *Carbon-enantiomorphs*, a toy dataset split into two sets with enantiomorphic pairs of structures from *Carbon-24* at the same index.
+- Overfitting datasets for testing model handling of symmetries: 
+  - *Carbon-X*, a dataset with duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
+  - *Carbon-NXL*, a dataset with duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
+
 ## Training
 
 Run the following command to train OMatG from scratch based on a configuration file:
@@ -432,11 +443,11 @@ Run the following command to compute the metrics for the CSP task:
 omg csp_metrics --config=<configuration_file.yaml> --xyz_file=<xyz_file>
 ```
 
-This command attempts to match structures at the same index in the generated dataset and the prediction dataset. 
-The metrics include the match rate between the generated structures and the structures in the prediction dataset, as 
-well as the average (normalized) root-mean square displacement between the matched structures. By default, these metrics
-are stored in the `csp_metrics.json` file. This command also plots the histogram of the root-mean-square distances 
-between the matched structures in the `rmsds.pdf` file. 
+This command computes a rate of matching structures using PyMatGen [`StructureMatcher`](https://github.com/materialsproject/pymatgen/blob/master/src/pymatgen/analysis/structure_matcher.py). The metrics include the match rate between the generated structures and the structures in the prediction dataset, as well as the average (normalized) root-mean square displacement between the matched structures. 
+
+By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, the match-everyone-to-reference rate can be computed instead by using `METRe=True`, in which case the best match from all generated structures are counted with respect to each structure in the prediction dataset.
+
+By default, the average corrected root-mean square error (cRMSE) is computed in addition to the average root-mean square displacement. This metric replaces None values in the list of root-mean square displacements for non-matching structures with the site-tolerance `stol` from StructureMatcher.
 
 By default, this method first validates the generated structures and the structures in the prediction dataset
 based on volume, structure, composition, and fingerprint checks (see [`ValidAtoms`](omg/analysis/valid_atoms.py) class), 
@@ -445,6 +456,8 @@ The (slow) validation can be skipped by using `skip_validation=True`.
 
 The validations and matchings are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
 be changed by setting the `--number_cpus` argument (which is probably most useful in cluster environments).
+
+By default, these metrics are stored in the `csp_metrics.json` file. This command also plots the histogram of the root-mean-square distances between the matched structures in the `rmsds.pdf` file. 
 
 Further arguments are documented in the `csp_metrics` method in the [`OMGTrainer`](omg/omg_trainer.py) class.
 
@@ -483,6 +496,24 @@ Please cite the following paper when using OMatG in your work:
     url={https://openreview.net/forum?id=gHGrzxFujU},
     archivePrefix={arXiv},
     eprint={2502.02582},
+    primaryClass={cs.LG},
+}
+```
+
+Please cite the following paper if using new benchmarks and datasets associated with OMatG:
+
+```bibtex
+@inproceedings{
+    martirossyan2025,
+    title={All that structure matches does not glitter},
+    author={Maya Martirossyan and Thomas Egg and Philipp H{\"o}llmer 
+    and George Karypis and Mark Transtrum and Adrian Roitberg 
+    and Mingjie Liu and Richard Hennig and Ellad B. Tadmor and Stefano Martiniani},
+    booktitle={Thirty-Ninth Annual Conference on Neural Information Processing Systems},
+    year={2025},
+    url={https://openreview.net/forum?id=ig9ujp50D4},
+    archivePrefix={arXiv},
+    eprint={2509.12178},
     primaryClass={cs.LG},
 }
 ```

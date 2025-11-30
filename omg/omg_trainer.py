@@ -22,7 +22,7 @@ from omg.sampler.minimum_permutation_distance import correct_for_minimum_permuta
 from omg.si.corrector import PeriodicBoundaryConditionsCorrector
 from omg.utils import convert_ase_atoms_to_data, xyz_reader
 from omg.analysis import (get_coordination_numbers, get_coordination_numbers_species, get_cov, get_space_group,
-                          get_volume_frac, match_rmsds, match_rate_and_rmsd_corr, ValidAtoms)
+                          get_volume_frac, match_rmsds, metre_rmsds, ValidAtoms)
 
 
 class OMGTrainer(Trainer):
@@ -625,12 +625,12 @@ class OMGTrainer(Trainer):
 
     def csp_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str, skip_validation: bool = False,
                     skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5, angle_tol: float = 10.0,
-                    METRe: bool = True, cRMSE: bool = True,
+                    METRe: bool = False, cRMSE: bool = True,
                     number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
                     xyz_file_prediction_data: Optional[str] = None, check_reduced: bool = True,
                     result_name: str = "csp_metrics.json", plot_name: str = "rmsds.pdf") -> None:
         """
-        Compute the crystal-structure prediction metrics for the generated structures.
+        Compute the crystal-structure prediction (CSP) metrics for the generated structures.
 
         By default, this method first validates the generated structures and the structures in the prediction dataset
         based on volume, structure, composition, and fingerprint checks (see ValidAtoms class), and calculates the match
@@ -640,14 +640,14 @@ class OMGTrainer(Trainer):
         The following metrics are computed:
 
         match rate: Fraction of matching crystal structures between the generated dataset and the reference dataset.
-        Is either the standard CSP one-to-one match rate or the match-everyone-to-reference (METRe) match rate.
+        Is either a standard CSP one-to-one match rate or the match-everyone-to-reference (METRe) match rate.
             If METRe is enabled (default),
                 this method matches each reference structure to the best matching generated structure.
             If METRe is disabled, 
                 match rate is computed for structures at the same index in the generated dataset and the prediction dataset.
         root-mean-square error (RMSE): Mean root-mean-square error between matched structures.
-        cRMSE: Mean root-mean-square distance between every generated structure and its best match in the reference dataset.
-               Non-matching structures are penalized by using stol as the rmsd when structures do not match.
+        cRMSE: Mean root-mean-square distance between matched structures, 
+        and for non-matching structures a penalty is applied by using stol as the rmsd.
 
         Structures are considered to match based on PyMatgen's StructureMatcher (see
         https://pymatgen.org/pymatgen.analysis.html). The default tolerances for the matcher are taken from CDVAE,
@@ -657,8 +657,8 @@ class OMGTrainer(Trainer):
         prediction task used by CDVAE, DiffCSP, and FlowMM.
 
         The METRe and cRMSE metrics are introduced in: https://arxiv.org/abs/2509.12178.
-        If your dataset contains polymorphs, the METRe flag should be enabled.
-        If your dataset contains duplicate structures, the METRe flag should be disabled.
+        If your dataset contains polymorphs, the METRe option should be enabled.
+        If your dataset contains duplicate structures, the METRe option should be disabled.
         If cRMSE is enabled (default), the corrected RMSE will be computed
             in which stol is assigned as the RMSE for non-matching structures.
 
@@ -699,7 +699,7 @@ class OMGTrainer(Trainer):
             This argument can be optionally set on the command line.
         :type angle_tol: float
         :param METRe:
-            Defaults to True.
+            Defaults to False.
             If True, the match-everyone-to-reference (METRe) match rate is computed instead of standard one-to-one match rate.
             If there are no polymorphs, METRe will give the same match rate as the standard one-to-one match rate.
             Should be avoided if there are duplicate structures in the dataset.
@@ -811,7 +811,7 @@ class OMGTrainer(Trainer):
                         f"structures and the valid prediction dataset is {vrmsd}.")
 
             elif METRe:
-                fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rate_and_rmsd_corr(
+                fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = metre_rmsds(
                     gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
                     check_reduced=check_reduced)
                 match_type = "METRe_rate"
