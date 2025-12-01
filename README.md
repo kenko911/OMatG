@@ -4,7 +4,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2502.02582-maroon)](https://arxiv.org/abs/2502.02582)
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/OMatG)
 
-[![Python](https://img.shields.io/badge/python-3.10--3.13-blue?logo=python)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.11--3.13-blue?logo=python)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.8-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Lightning](https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white)](https://github.com/Lightning-AI/lightning)
 
@@ -348,7 +348,7 @@ The `model` section specifies the model architecture. In the above example, we j
 
 Install the dependencies (see [pyproject.toml](pyproject.toml)) and the `omg` package itself by running 
 `pip install .` within the base directory of this repository. For editable mode (recommended for developers), use 
-`pip install -e .` instead. You can use any Python version between 3.10 and 3.13. 
+`pip install -e .` instead. You can use any Python version between 3.11 and 3.13. 
 
 If the code in this repository changes, the command `pip install .` has to be executed again to also 
 change the code of the installed package. If you installed `omg` in editable mode, any changes in code are directly 
