@@ -2,14 +2,18 @@
 
 [![Static Badge](https://img.shields.io/badge/ICML_2025-OpenReview.net-811913?labelColor=222529)](https://openreview.net/forum?id=gHGrzxFujU)
 [![arXiv](https://img.shields.io/badge/arXiv-2502.02582-maroon)](https://arxiv.org/abs/2502.02582)
-[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/OMatG)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20Checkpoints-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/OMatG)
+
+[![Static Badge](https://img.shields.io/badge/NeurIPS_2025-OpenReview.net-811913?labelColor=222529)](https://openreview.net/forum?id=ig9ujp50D4)
+[![arXiv](https://img.shields.io/badge/arXiv-2509.12178-maroon)](https://arxiv.org/abs/2509.12178)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20Datasets-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/datasets/colabfit/carbon-24_unique)
 
 [![Python](https://img.shields.io/badge/python-3.11--3.13-blue?logo=python)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.8-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Lightning](https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white)](https://github.com/Lightning-AI/lightning)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![Static Badge](https://img.shields.io/badge/Version-1.0.0-blue)
+![Static Badge](https://img.shields.io/badge/Version-1.1.0-blue)
 
 A state-of-the-art generative model for crystal structure prediction and *de novo* generation of inorganic crystals. 
 This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) (expanded version available on [arXiv](https://arxiv.org/abs/2502.02582)) and the [NeurIPS 2025 paper](https://openreview.net/forum?id=ig9ujp50D4) (expanded version available on [arXiv](https://arxiv.org/abs/2509.12178)) which should be [cited](#citing-omatg) when using it. 
