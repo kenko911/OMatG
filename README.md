@@ -5,7 +5,7 @@
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/OMatG)
 
 [![Python](https://img.shields.io/badge/python-3.10--3.13-blue?logo=python)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.7-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.8-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Lightning](https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white)](https://github.com/Lightning-AI/lightning)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -431,6 +431,29 @@ below.
 
 If you want to change the batch size of the generation, you can overwrite the batch size in the configuration file with 
 the `--data.batch_size=<new_batch_size>` argument.
+
+### Crystal-Structure Prediction of Specific Compositions
+
+In order to predict crystal structures for specific compositions, the following command can be used to create an `lmdb` 
+file containing only dummy structures with the desired compositions:
+
+```bash
+omg create_compositions --config=<configuration_file.yaml> --compositions=<compositions> --lmdb_file=<lmdb_file>
+```
+
+Here, `<compositions>` is a composition string that can be understood by 
+[PyMatgen's `Composition` class](https://pymatgen.org/pymatgen.core.html) (e.g., `--compositions='LiMn3O4'`) or a list 
+thereof (e.g., `--compositions='[LiMn3O4, Ga4Te4]'`). The optional `repeats` command line argument can be used 
+to repeat each composition multiple times in the created lmdb file (e.g., for generating multiple structures per 
+composition). By default, each composition is only included once.
+
+The name of the created lmdb file is specified by `<lmdb_file>`. This lmdb file can then be used as the prediction 
+dataset in the configuration file for predicting structures with the desired compositions with the `omg predict` command 
+above (it is also possible to overwrite the prediction dataset on the command line with the 
+`--data.predict_dataset.init_args.dataset.init_args.lmdb_paths=[<lmdb_file>]` argument).
+
+Importantly, one should use a checkpoint of a crystal-structure-prediction model whose training set includes the 
+elements of the desired compositions in the `omg predict` command.
 
 ## Visualization
 
