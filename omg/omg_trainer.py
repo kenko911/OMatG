@@ -787,7 +787,6 @@ class OMGTrainer(Trainer):
                 fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rmsds(
                     gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol,
                     number_cpus=number_cpus, check_reduced=check_reduced)
-                match_type = "match_rate"
                 filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
                 filtered_valid_rmsds = [rmsd for rmsd in val_rmsds if rmsd is not None]
 
@@ -812,7 +811,7 @@ class OMGTrainer(Trainer):
                         "match_rate": fmr,
                         "mean_RMSE": frmsd,
                         "mean_cRMSE": corr_rmsd,
-                        "valid_match_rate".format(match_type): vmr,
+                        "valid_match_rate": vmr,
                         "valid_mean_RMSE": vrmsd,
                         "valid_mean_cRMSE": vcorr_rmsd
                     }, f, indent=4)
@@ -821,7 +820,6 @@ class OMGTrainer(Trainer):
                 fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = metre_rmsds(
                     gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol,
                     number_cpus=number_cpus, check_reduced=check_reduced)
-                match_type = "METRe_rate"
                 filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
                 filtered_valid_rmsds = [rmsd for rmsd in val_rmsds if rmsd is not None]
 
@@ -846,7 +844,7 @@ class OMGTrainer(Trainer):
                         "METRe": fmr,
                         "mean_RMSE": frmsd,
                         "mean_cRMSE": corr_rmsd,
-                        "valid_METRe".format(match_type): vmr,
+                        "valid_METRe": vmr,
                         "valid_mean_RMSE": vrmsd,
                         "valid_mean_cRMSE": vcorr_rmsd
                     }, f, indent=4)
