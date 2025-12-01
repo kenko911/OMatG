@@ -477,9 +477,9 @@ omg csp_metrics --config=<configuration_file.yaml> --xyz_file=<xyz_file>
 
 This command computes a rate of matching structures using PyMatGen [`StructureMatcher`](https://github.com/materialsproject/pymatgen/blob/master/src/pymatgen/analysis/structure_matcher.py). The metrics include the match rate between the generated structures and the structures in the prediction dataset, as well as the average (normalized) root-mean square displacement between the matched structures. 
 
-By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, the match-everyone-to-reference rate can be computed instead by using `METRe=True`, in which case the best match from all generated structures are counted with respect to each structure in the prediction dataset.
+By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, the match-everyone-to-reference rate can be computed instead by using `metre=True`, in which case the best match from all generated structures are counted with respect to each structure in the prediction dataset.
 
-The average corrected root-mean square error (`cRMSE`) is computed in addition to the average root-mean square displacement, which replaces None values in the list of root-mean square displacements for non-matching structures with the site-tolerance `stol` from StructureMatcher.
+The average corrected root-mean square displacement is computed in addition to the average root-mean square displacement, which replaces None values in the list of root-mean square displacements for non-matching structures with the site-tolerance `stol` from StructureMatcher.
 
 By default, this method first validates the generated structures and the structures in the prediction dataset
 based on volume, structure, composition, and fingerprint checks (see [`ValidAtoms`](omg/analysis/valid_atoms.py) class), 
