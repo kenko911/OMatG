@@ -483,11 +483,11 @@ The metrics include the match rate between the generated structures and the stru
 well as the average (normalized) root-mean square displacement between the matched structures. 
 
 By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, 
-the match-everyone-to-reference rate can be computed instead by using specifying `--metre=True`, in which case the best 
+the match-everyone-to-reference rate can be computed instead by specifying `--metre=True`, in which case the best 
 match from all generated structures are counted with respect to each structure in the prediction dataset.
 
-Typically, non-matching generated structures are ignored for the average root-mean square displacement. This command 
-reports an average corrected root-mean square error (`cRMSE`). Here, non-matching structures are penalized with the 
+Typically, non-matching generated structures are ignored for the average root-mean square displacement. This command
+also reports an average corrected root-mean square error (`cRMSE`). Here, non-matching structures are penalized with the 
 site-tolerance matching parameter `stol` of the `StructureMatcher` in the average.
 
 By default, this method first validates the generated structures and the structures in the prediction dataset
