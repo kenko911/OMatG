@@ -628,44 +628,43 @@ class OMGTrainer(Trainer):
 
     def csp_metrics(self, model: OMGLightning, datamodule: OMGDataModule, xyz_file: str, skip_validation: bool = False,
                     skip_match: bool = False, ltol: float = 0.3, stol: float = 0.5, angle_tol: float = 10.0,
-                    METRe: bool = False, cRMSE: bool = True,
-                    number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
+                    metre: bool = False, number_cpus: Optional[int] = None, upper_narity_limit: Optional[int] = None,
                     xyz_file_prediction_data: Optional[str] = None, check_reduced: bool = True,
                     result_name: str = "csp_metrics.json", plot_name: str = "rmsds.pdf") -> None:
         """
         Compute the crystal-structure prediction (CSP) metrics for the generated structures.
 
         By default, this method first validates the generated structures and the structures in the prediction dataset
-        based on volume, structure, composition, and fingerprint checks (see ValidAtoms class), and calculates the match
-        rate between the valid generated structures and the valid structures in the prediction dataset. The validation
-        can be skipped by setting the `skip_validation` argument to True.
+        based on volume, structure, composition, and fingerprint checks (see ValidAtoms class), and calculates a match
+        rate metric between the valid generated structures and the valid structures in the prediction dataset. The
+        validation can be skipped by setting the `skip_validation` argument to True.
 
-        The following metrics are computed:
+        The match rate metric is the fraction of matching crystal structures between the generated dataset and the
+        prediction dataset. It is either one-to-one match rate or the match-everyone-to-reference (METRe) match rate.
+        The one-to-one match rate matches structures at the same index in the generated dataset and the prediction
+        dataset. The METRe match rate matches each reference structure to the best matching generated structure.
 
-        match rate: Fraction of matching crystal structures between the generated dataset and the reference dataset.
-        Is either a standard CSP one-to-one match rate or the match-everyone-to-reference (METRe) match rate.
-            If METRe is enabled (default),
-                this method matches each reference structure to the best matching generated structure.
-            If METRe is disabled, 
-                match rate is computed for structures at the same index in the generated dataset and the prediction dataset.
-        root-mean-square error (RMSE): Mean root-mean-square error between matched structures.
-        cRMSE: Mean root-mean-square distance between matched structures, 
-        and for non-matching structures a penalty is applied by using stol as the rmsd.
+        This function also computes the mean root-mean-square distance (RMSE) between the matched structures. For the
+        METRe metric, the best matching generated structure with the smallest root-mean-square distance is used.
+
+        Finally, this function computes the corrected root-mean-square distance (cRMSE) between the matched structures.
+        In this metric, a penalty is applied by using stol as the rmsd for non-matching structures (which are ignored
+        in the mean for the standard root-mean-square distance).
 
         Structures are considered to match based on PyMatgen's StructureMatcher (see
         https://pymatgen.org/pymatgen.analysis.html). The default tolerances for the matcher are taken from CDVAE,
         DiffCSP, and FlowMM.
 
-        The match rate and the average root-mean-square error (RMSE) is one of the benchmarks for the crystal-structure
-        prediction task used by CDVAE, DiffCSP, and FlowMM.
+        The one-to-one match rate and the mean root-mean-square distance is one of the benchmarks for the
+        crystal-structure prediction task used by CDVAE, DiffCSP, and FlowMM.
 
-        The METRe and cRMSE metrics are introduced in: https://arxiv.org/abs/2509.12178.
-        If your dataset contains polymorphs, the METRe option should be enabled.
-        If your dataset contains duplicate structures, the METRe option should be disabled.
-        If cRMSE is enabled (default), the corrected RMSE will be computed
-            in which stol is assigned as the RMSE for non-matching structures.
+        The METRe and corrected root-mean-square distance metrics are introduced in https://arxiv.org/abs/2509.12178.
+        If the prediction dataset contains polymorphs, the METRe option should be enabled.
+        If there are no polymorphs, METRe will give the same match rate as the standard one-to-one match rate.
+        If the prediction dataset contains duplicate structures, the METRe option should be disabled.
 
-        This method also plots the histogram of the root-mean-square errors between the matched structures.
+        This method also plots the histogram of the (uncorrected) root-mean-square distances between the matched
+        structures.
 
         :param model:
             OMG model (argument required and automatically passed by lightning CLI).
@@ -701,21 +700,12 @@ class OMGTrainer(Trainer):
             Defaults to 10.0.
             This argument can be optionally set on the command line.
         :type angle_tol: float
-        :param METRe:
+        :param metre:
+            Whether the match-everyone-to-reference (METRe) metric is computed instead of standard one-to-one match
+            rate.
             Defaults to False.
-            If True, the match-everyone-to-reference (METRe) match rate is computed instead of standard one-to-one match rate.
-            If there are no polymorphs, METRe will give the same match rate as the standard one-to-one match rate.
-            Should be avoided if there are duplicate structures in the dataset.
             This argument can be optionally set on the command line.
-        :type METRe: bool
-        :param cRMSE:
-            Defaults to True.
-            If True, the corrected RMSE is returned in which stol is assigned as the RMSE
-            for non-matching structures.
-            Can be used with either choice of match rate (METRe or standard).
-            If all structures match, cRMSE will be the same as RMSE.
-            This argument can be optionally set on the command line.
-        :type cRMSE: bool
+        :type metre: bool
         :param number_cpus:
             Number of CPUs to use for multiprocessing. If None, use os.cpu_count().
             Defaults to None.
@@ -793,10 +783,10 @@ class OMGTrainer(Trainer):
                   f"{100 * sum(va.valid for va in gen_valid_atoms) / len(gen_valid_atoms)}%.")
 
         if not skip_match:
-            if not METRe:
+            if not metre:
                 fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = match_rmsds(
-                    gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
-                    check_reduced=check_reduced)
+                    gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol,
+                    number_cpus=number_cpus, check_reduced=check_reduced)
                 match_type = "match_rate"
                 filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
                 filtered_valid_rmsds = [rmsd for rmsd in val_rmsds if rmsd is not None]
@@ -806,53 +796,60 @@ class OMGTrainer(Trainer):
                 print(f"The match rate between all generated structures and the prediction dataset is "
                         f"{100.0 * fmr}%.")
                 print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), between all generated "
-                        f"structures and the prediction dataset is {frmsd}.")
+                      f"structures and the prediction dataset is {frmsd}.")
+                print(f"The corrected root-mean-square distance, normalized by (V / N) ** (1/3), between all generated "
+                      f"structures and the prediction dataset is {corr_rmsd}.")
                 print()
                 print(f"The match rate between valid generated structures and the valid prediction dataset is "
                         f"{100.0 * vmr}%.")
                 print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), between valid generated "
-                        f"structures and the valid prediction dataset is {vrmsd}.")
+                      f"structures and the valid prediction dataset is {vrmsd}.")
+                print(f"The corrected root-mean-square distance, normalized by (V / N) ** (1/3), between valid "
+                      f"generated structures and the valid prediction dataset is {vcorr_rmsd}.")
 
-            elif METRe:
+                with open(result_name, "w") as f:
+                    json.dump({
+                        "match_rate": fmr,
+                        "mean_RMSE": frmsd,
+                        "mean_cRMSE": corr_rmsd,
+                        "valid_match_rate".format(match_type): vmr,
+                        "valid_mean_RMSE": vrmsd,
+                        "valid_mean_cRMSE": vcorr_rmsd
+                    }, f, indent=4)
+
+            else:
                 fmr, frmsd, vmr, vrmsd, rmsds, val_rmsds, corr_rmsd, vcorr_rmsd = metre_rmsds(
-                    gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol, number_cpus=number_cpus,
-                    check_reduced=check_reduced)
+                    gen_valid_atoms, ref_valid_atoms, ltol=ltol, stol=stol, angle_tol=angle_tol,
+                    number_cpus=number_cpus, check_reduced=check_reduced)
                 match_type = "METRe_rate"
-                filtered_rmsds = rmsds[~np.isnan(rmsds)]
-                filtered_valid_rmsds = val_rmsds[~np.isnan(val_rmsds)]
+                filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
+                filtered_valid_rmsds = [rmsd for rmsd in val_rmsds if rmsd is not None]
 
                 assert len(rmsds) == len(val_rmsds) == len(gen_valid_atoms)
 
-                print(f"The match everyone to reference (METRe) rate for all generated structures is {100.0 * fmr}%.")
-                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
-                    f"and all generated structures is {frmsd}.")
+                print(f"The match-everyone-to-reference (METRe) rate for all generated structures with respect to the"
+                      f"prediction dataset is {100.0 * fmr}%.")
+                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), for all generated "
+                      f"structures with respect to the prediction dataset is {frmsd}.")
+                print(f"The corrected root-mean-square distance, normalized by (V / N) ** (1/3), for all generated "
+                      f"structures with respect to the prediction dataset is {corr_rmsd}.")
                 print()
-                print(f"The match everyone to reference (METRe) rate for all valid generated structures is {100.0 * vmr}%.")
-                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), with respect to all reference structures "
-                    f"and all valid generated structures is {vrmsd}.")
+                print(f"The match-everyone-to-reference (METRe) rate for valid generated structures with respect to the"
+                      f"valid prediction dataset is {100.0 * vmr}%.")
+                print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), for valid generated "
+                      f"structures with respect to the valid prediction dataset is {vrmsd}.")
+                print(f"The corrected root-mean-square distance, normalized by (V / N) ** (1/3), for valid generated "
+                      f"structures with respect to the valid prediction dataset is {vcorr_rmsd}.")
 
-            with open(result_name, "w") as f:
-                json.dump({
-                    "{}".format(match_type): fmr,
-                    "mean_RMSE": frmsd,
-                    "valid_{}".format(match_type): vmr,
-                    "valid_mean_RMSE": vrmsd
-                }, f, indent=4)
-        
-            if cRMSE:
-                print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
-                    f"with stol={stol} between all generated structures and the full dataset is {corr_rmsd}.")
-                print(f"The corrected average root-mean-square distance, normalized by (V / N) ** (1/3) and penalizing non-matching structures "
-                    f"with stol={stol} between all valid generated structures and the valid dataset is {vcorr_rmsd}.")
-                
-                with open(result_name, "r") as f:
-                    data = json.load(f)
-                data.update({
-                    "cRMSE": corr_rmsd,
-                    "valid_cRMSE": vcorr_rmsd,
-                })
                 with open(result_name, "w") as f:
-                    json.dump(data, f, indent=4)
+                    json.dump({
+                        "METRe": fmr,
+                        "mean_RMSE": frmsd,
+                        "mean_cRMSE": corr_rmsd,
+                        "valid_METRe".format(match_type): vmr,
+                        "valid_mean_RMSE": vrmsd,
+                        "valid_mean_cRMSE": vcorr_rmsd
+                    }, f, indent=4)
                 
             plt.figure()
             bandwidth = np.std(filtered_rmsds) * len(filtered_rmsds) ** (-1 / 5)  # Scott's rule.
