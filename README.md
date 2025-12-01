@@ -477,11 +477,18 @@ Run the following command to compute the metrics for the CSP task:
 omg csp_metrics --config=<configuration_file.yaml> --xyz_file=<xyz_file>
 ```
 
-This command computes a rate of matching structures using PyMatGen [`StructureMatcher`](https://github.com/materialsproject/pymatgen/blob/master/src/pymatgen/analysis/structure_matcher.py). The metrics include the match rate between the generated structures and the structures in the prediction dataset, as well as the average (normalized) root-mean square displacement between the matched structures. 
+This command computes a rate of matching structures using PyMatGen's 
+[`StructureMatcher`](https://github.com/materialsproject/pymatgen/blob/master/src/pymatgen/analysis/structure_matcher.py). 
+The metrics include the match rate between the generated structures and the structures in the prediction dataset, as 
+well as the average (normalized) root-mean square displacement between the matched structures. 
 
-By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, the match-everyone-to-reference rate can be computed instead by using `METRe=True`, in which case the best match from all generated structures are counted with respect to each structure in the prediction dataset.
+By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, 
+the match-everyone-to-reference rate can be computed instead by using specifying `--metre=True`, in which case the best 
+match from all generated structures are counted with respect to each structure in the prediction dataset.
 
-By default, the average corrected root-mean square error (`cRMSE`) is computed in addition to the average root-mean square displacement. This metric replaces None values in the list of root-mean square displacements for non-matching structures with the site-tolerance `stol` from StructureMatcher.
+Typically, non-matching generated structures are ignored for the average root-mean square displacement. This command 
+reports an average corrected root-mean square error (`cRMSE`). Here, non-matching structures are penalized with the 
+site-tolerance matching parameter `stol` of the `StructureMatcher` in the average.
 
 By default, this method first validates the generated structures and the structures in the prediction dataset
 based on volume, structure, composition, and fingerprint checks (see [`ValidAtoms`](omg/analysis/valid_atoms.py) class), 
@@ -491,7 +498,10 @@ The (slow) validation can be skipped by using `skip_validation=True`.
 The validations and matchings are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
 be changed by setting the `--number_cpus` argument (which is probably most useful in cluster environments).
 
-By default, these metrics are stored in the `csp_metrics.json` file. This command also plots the histogram of the root-mean-square distances between the matched structures in the `rmsds.pdf` file. 
+By default, these metrics are stored in the `csp_metrics.json` file. 
+
+This command also plots the histogram of the (uncorrected) root-mean-square distances between the matched structures in 
+the `rmsds.pdf` file. 
 
 Further arguments are documented in the `csp_metrics` method in the [`OMGTrainer`](omg/omg_trainer.py) class.
 
@@ -534,7 +544,7 @@ Please cite the following paper when using OMatG in your work:
 }
 ```
 
-Please cite the following paper if using new benchmarks and datasets associated with OMatG:
+Please cite the following paper when using new benchmarks and datasets associated with OMatG:
 
 ```bibtex
 @inproceedings{
