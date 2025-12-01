@@ -16,7 +16,11 @@
 ![Static Badge](https://img.shields.io/badge/Version-1.1.0-blue)
 
 A state-of-the-art generative model for crystal structure prediction and *de novo* generation of inorganic crystals. 
-This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) (expanded version available on [arXiv](https://arxiv.org/abs/2502.02582)) and the [NeurIPS 2025 paper](https://openreview.net/forum?id=ig9ujp50D4) (expanded version available on [arXiv](https://arxiv.org/abs/2509.12178)) which should be [cited](#citing-omatg) when using it. 
+This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) about the 
+generative model itself (expanded version available on [arXiv](https://arxiv.org/abs/2502.02582)), and the 
+[NeurIPS 2025 paper](https://openreview.net/forum?id=ig9ujp50D4) about newly introduced benchmark metrics and datasets 
+(expanded version available on [arXiv](https://arxiv.org/abs/2509.12178)). 
+These papers should be [cited](#citing-omatg) when using it. 
 
 #### Crystal structure prediction of GaTe:
 
@@ -65,7 +69,9 @@ fashion pieces. The relevant beginner-friendly notebook that introduces generati
 is also available on [Kaggle](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion) 
 (with solutions [here](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion-sols)).
 
-A tutorial notebook providing a crystallography primer is available on [Kaggle](https://www.kaggle.com/code/mayamartirossyan/crystal-representations-primer).
+A tutorial notebook providing a crystallography primer is available on 
+[Kaggle](https://www.kaggle.com/code/mayamartirossyan/crystal-representations-primer). This primer is in particular 
+relevant for the newly introduced benchmark metrics and datasets.
 
 <details>
 <summary><b>Expand this section for a brief introduction to the theoretical background of OMatG.</b></summary>
@@ -368,7 +374,7 @@ Installing the `omg` package as described above provides the `omg` command for t
 
 ## Included Datasets
 
-For convenience, we include several material datasets that can be used for training. They can be found in the 
+For convenience, we include several standard material datasets that can be used for training. They can be found in the 
 [```omg/data```](omg/data) directory and are described briefly below:
 
 - *MP-20*: 45,229 structures from the [Materials Project](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) with a maximum of 20 atoms per structure.
@@ -382,10 +388,8 @@ For convenience, we include several material datasets that can be used for train
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
-<details>
-<summary><b>Expand this section for information on additional contributed datasets, including polymorph-aware, duplicate-pruned, and overfitting datasets.</b></summary>
-
-We provide the following newly cultivated datasets, which can be found at the ColabFit [HuggingFace link](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter):
+We further provide the following newly cultivated datasets, which can also be found on 
+[HuggingFace](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter):
 - The duplicate-pruned versions of *Carbon-24*, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
 - The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
 - Datasets with explicitly labeled chiral pairs: 
@@ -394,8 +398,6 @@ We provide the following newly cultivated datasets, which can be found at the Co
 - Overfitting datasets for testing model handling of symmetries: 
   - *Carbon-X*, a dataset with duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
   - *Carbon-NXL*, a dataset with duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
-
-</details>
 
 ## Training
 
