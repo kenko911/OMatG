@@ -825,7 +825,7 @@ class OMGTrainer(Trainer):
 
                 assert len(rmsds) == len(val_rmsds) == len(gen_valid_atoms)
 
-                print(f"The match-everyone-to-reference (METRe) rate for all generated structures with respect to the"
+                print(f"The match-everyone-to-reference (METRe) rate for all generated structures with respect to the "
                       f"prediction dataset is {100.0 * fmr}%.")
                 print(f"The mean root-mean-square distance, normalized by (V / N) ** (1/3), for all generated "
                       f"structures with respect to the prediction dataset is {frmsd}.")
