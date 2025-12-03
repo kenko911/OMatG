@@ -388,16 +388,16 @@ For convenience, we include several standard material datasets that can be used 
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
-We further provide the following newly cultivated datasets, which can also be found on 
+We further provide the following newly cultivated datasets, most of which are included in the OMatG repository and all of which can also be found on 
 [HuggingFace](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter):
-- The duplicate-pruned versions of *Carbon-24*, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
+- The duplicate-pruned versions of *Carbon-24* containing 4,250 structures, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
 - The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
 - Datasets with explicitly labeled chiral pairs: 
-  - *Carbon-24-unique-with-enantiomorphs*, a duplicate-pruned version of *Carbon-24* where enantiomorph pairs are treated as distinct structures and labeled. In *Carbon-24-unique*, only one of each pair is included because StructureMatcher cannot distinguish between chiral pairs.
-  - *Carbon-enantiomorphs*, a toy dataset split into two sets with enantiomorphic pairs of structures from *Carbon-24* at the same index.
+  - *Carbon-24-unique-with-enantiomorphs*, a duplicate-pruned version of *Carbon-24* with 4,330 structures where enantiomorph pairs are treated as distinct structures and labeled. By contrast in *Carbon-24-unique*, only one of each pair is included because `StructureMatcher` cannot distinguish between chiral pairs.
+  - *Carbon-enantiomorphs*, a toy dataset of 160 chiral structures split into two sets, with enantiomorphic pairs of structures from *Carbon-24-unique-with-enantiomorphs* at the same index.
 - Overfitting datasets for testing model handling of symmetries: 
-  - *Carbon-X*, a dataset with duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
-  - *Carbon-NXL*, a dataset with duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
+  - *Carbon-X*, a dataset with 480 duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
+  - *Carbon-NXL*, a dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
 
 ## Training
 
