@@ -6,7 +6,7 @@
 
 [![Static Badge](https://img.shields.io/badge/NeurIPS_2025-OpenReview.net-811913?labelColor=222529)](https://openreview.net/forum?id=ig9ujp50D4)
 [![arXiv](https://img.shields.io/badge/arXiv-2509.12178-maroon)](https://arxiv.org/abs/2509.12178)
-[![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20Datasets-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/datasets/colabfit/carbon-24_unique)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20Datasets-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter)
 
 [![Python](https://img.shields.io/badge/python-3.11--3.13-blue?logo=python)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.8-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
