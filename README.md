@@ -20,7 +20,7 @@ This open-source framework accompanies the [ICML 2025 paper](https://openreview.
 generative model itself (expanded version available on [arXiv](https://arxiv.org/abs/2502.02582)), and the 
 [NeurIPS 2025 paper](https://openreview.net/forum?id=ig9ujp50D4) about newly introduced benchmark metrics and datasets 
 (expanded version available on [arXiv](https://arxiv.org/abs/2509.12178)). 
-These papers should be [cited](#citing-omatg) when using it. 
+These papers should be [cited](#citing-omatg) when using OMatG or the newly introduced benchmark metrics and datasets. 
 
 #### Crystal structure prediction of GaTe:
 
@@ -388,16 +388,31 @@ For convenience, we include several standard material datasets that can be used 
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
 
-We further provide the following newly cultivated datasets, most of which are included in the OMatG repository and all of which can also be found on 
+We further provide the following newly cultivated datasets, most of which are included in the OMatG repository in the 
+[```omg/data```](omg/data) directory, and all of which can also be found on 
 [HuggingFace](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter):
-- The duplicate-pruned versions of *Carbon-24* containing 4,250 structures, *Carbon-24-unique* (randomly split) and *Carbon-24-unique-N-split* (splits by low-to-high and high-to-low number of atoms *N*).
-- The polymorph-aware splits of the following datasets which sequester polymorphs (different structures of the same composition) to the same split: *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*.
-- Datasets with explicitly labeled chiral pairs: 
-  - *Carbon-24-unique-with-enantiomorphs*, a duplicate-pruned version of *Carbon-24* with 4,330 structures where enantiomorph pairs are treated as distinct structures and labeled. By contrast in *Carbon-24-unique*, only one of each pair is included because `StructureMatcher` cannot distinguish between chiral pairs.
-  - *Carbon-enantiomorphs*, a toy dataset of 160 chiral structures split into two sets, with enantiomorphic pairs of structures from *Carbon-24-unique-with-enantiomorphs* at the same index.
-- Overfitting datasets for testing model handling of symmetries: 
-  - *Carbon-X*, a dataset with 480 duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
-  - *Carbon-NXL*, a dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
+- *Carbon-24-unique*: The duplicate-pruned versions of *Carbon-24* containing 4,250 structures that were randomly split. 
+- *Carbon-24-unique-N-split*: The duplicate-pruned versions of *Carbon-24* that were split low-to-high so that training
+  set structures contain 6–10, validation set structures contain 12–14, and test set structures contain 16–24 atoms. 
+  Analogously, the high-to-low split has 10–24 atoms in the training set structures, 8 atoms in the validation set
+  structures, and 6 atoms in the test set structures.
+- *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*: Polymorph-aware splits of the 
+  corresponding datasets which sequester polymorphs (different structures of the same composition) to the same split.
+  The *Perov-5-polymorph-split* and *MP-20-polymorph-split* datasets are available in 
+  [```omg/data/perov_5_ps```](omg/data/perov_5_ps) and [```omg/data/mp_20_ps```](omg/data/mp_20_ps), respectively. 
+  The *Alex-MP-20-polymorph-split* is only available on 
+  [HuggingFace](https://huggingface.co/datasets/colabfit/Alex-MP-20_Polymorph_Split).
+-  Overfitting datasets for testing model handling of symmetries in 
+  [```omg/data/carbon_24_unique/overfitting_datasets```](omg/data/carbon_24_unique/overfitting_datasets): 
+    - *Carbon-X*: A dataset with 480 duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
+    - *Carbon-NXL*: A dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
+- Datasets with explicitly labeled chiral pairs that are only available on 
+  [HuggingFace](https://huggingface.co/collections/colabfit/carbon-24-martirossyan-et-al): 
+  - *Carbon-24-unique-with-enantiomorphs*: A duplicate-pruned version of *Carbon-24* with 4,330 structures where 
+    enantiomorph pairs are treated as distinct structures and labeled. By contrast in *Carbon-24-unique*, only one of 
+    each pair is included because PyMatgen's `StructureMatcher` cannot distinguish between chiral pairs.
+  - *Carbon-enantiomorphs*: A toy dataset of 160 chiral structures split into two sets, with enantiomorphic pairs of 
+    structures from *Carbon-24-unique-with-enantiomorphs* at the same index.
 
 ## Training
 
@@ -483,8 +498,8 @@ The metrics include the match rate between the generated structures and the stru
 well as the average (normalized) root-mean square displacement between the matched structures. 
 
 By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, 
-the match-everyone-to-reference rate can be computed instead by specifying `--metre=True`, in which case the best 
-match from all generated structures are counted with respect to each structure in the prediction dataset.
+the match-everyone-to-reference (`METRe`) rate can be computed instead by specifying `--metre=True`, in which case the 
+best match from all generated structures are counted with respect to each structure in the prediction dataset.
 
 Typically, non-matching generated structures are ignored for the average root-mean square displacement. This command
 also reports an average corrected root-mean square error (`cRMSE`). Here, non-matching structures are penalized with the 

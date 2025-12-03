@@ -540,7 +540,7 @@ def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequ
 
     The root-mean-square displacements are normalized by (volume / number_sites) ** (1/3).
 
-    This function is required for match-everyone-to-reference calculation (see metre_rmsds function below).
+    This function is required for the match-everyone-to-reference calculation (see metre_rmsds function below).
 
     :param atoms_one:
         First structure.
