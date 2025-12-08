@@ -310,7 +310,7 @@ def _get_symmetry_dataset_var_prec(atoms: Atoms, angle_tolerance: float = -1.0,
 
 
 def get_space_group(atoms: Atoms, symprec: float = 1.0e-5, angle_tolerance: float = -1.0,
-                    var_prec: bool = False) -> tuple[Optional[str], Optional[int], Optional[str], Optional[Atoms]]:
+                    var_prec: bool = False) -> Tuple[Optional[str], Optional[int], Optional[str], Optional[Atoms]]:
     """
     Calculate the space group of a given structure using spglib with the given precision arguments.
 
@@ -352,7 +352,7 @@ def get_space_group(atoms: Atoms, symprec: float = 1.0e-5, angle_tolerance: floa
     :return:
         The space-group name, the space-group number, the crystal system, symmetrized structure.
         If the space-group could not be determined, all return values are None.
-    :rtype: (Optional[str], Optional[int], Optional[str], Optional[Atoms])
+    :rtype: Tuple[Optional[str], Optional[int], Optional[str], Optional[Atoms]]
     """
     # Cell arguments for spglib, see
     # https://spglib.readthedocs.io/en/stable/api/python-api/spglib/spglib.html#spglib.get_symmetry.
@@ -540,7 +540,7 @@ def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequ
 
     The root-mean-square displacements are normalized by (volume / number_sites) ** (1/3).
 
-    This function is required for multiprocessing (see match_rate function below).
+    This function is required for the match-everyone-to-reference calculation (see metre_rmsds function below).
 
     :param atoms_one:
         First structure.
@@ -581,18 +581,20 @@ def _get_match_and_rmsd_sequence(atoms_one: ValidAtoms, sequence_atoms_two: Sequ
 
 def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms], ltol: float = 0.2,
                 stol: float = 0.3, angle_tol: float = 5.0, number_cpus: Optional[int] = None,
-                check_reduced: bool = True,
-                enable_progress_bar: bool = True) -> Tuple[list[Optional[float]], list[Optional[float]]]:
+                check_reduced: bool = True, enable_progress_bar: bool = True) -> Tuple[float, float, float, float,
+                                                                                       List[Optional[float]],
+                                                                                       List[Optional[float]], float,
+                                                                                       float]:
     """
     Match the structures in the first sequence of validated atoms with the structures at the same index in the second
     sequence of validated atoms and return the root-mean-square displacements between the matching structures.
+    The validity of structures is determined by the ValidAtoms class.
 
-    The root-mean-square displacements are normalized by (volume / number_sites) ** (1/3). If the two structures do not
-    match, the corresponding root-mean-square displacement is None.
-
-    The first returned list contains the root-mean-square displacements for all structures, while the second list only
-    contains non-none values if both structures are valid. The validity of structures is determined by the ValidAtoms
-    class.
+    The root-mean-square displacements are normalized by (volume / number_sites) ** (1/3).
+    If the two structures do not match, the corresponding root-mean-square displacement is None, and it will be ignored
+    in the mean root-mean-square displacement calculation. For the corrected root-mean-square displacement, if a
+    structure does not match with any other structure, the corresponding corrected root-mean-square displacement is
+    stol.
 
     This method uses PyMatgen's StructureMatcher to compare the structures (see
     https://pymatgen.org/pymatgen.analysis.html).
@@ -633,8 +635,15 @@ def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms]
     :type enable_progress_bar: bool
 
     :return:
-        (List of root-mean-square displacements, List of valid root-mean-square displacements).
-    :rtype: Tuple[list[Optional[float]], list[Optional[float]]]
+        The match rate considering all structures,
+        The standard mean root-mean-square displacement considering all structures,
+        The match rate considering valid structures,
+        The standard mean root-mean-square displacement considering valid structures,
+        The list of rmsds measured with respect to the generated set,
+        The list of valid rmsds measured with respect to the generated set,
+        The corrected root-mean-square displacement associated with all structures,
+        The corrected root-mean-square displacement associated with valid structures.
+    :rtype: Tuple[float, float, float, float, List[Optional[float]], List[Optional[float]], float, float]
 
     :raises ValueError:
         If the number of structures in the first list is larger than the number of structures in the reference list.
@@ -655,16 +664,167 @@ def match_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms]
     match_func = partial(_get_match_and_rmsd, ltol=ltol, stol=stol, angle_tol=angle_tol,
                          check_reduced=check_reduced)
     if cpu_count > 1:
-        res = process_map(match_func, atoms_list, ref_list, desc="Computing matches",
+        res = process_map(match_func, atoms_list, ref_list, desc="Computing matches and RMSDs",
                           chunksize=max(min(len(atoms_list) // cpu_count, 100), 1), max_workers=cpu_count,
                           disable=not enable_progress_bar)
     else:
         # Apply tqdm to the shortest atoms list to show the correct progress bar.
-        res = list(map(match_func, tqdm(atoms_list, desc="Computing matches", disable=not enable_progress_bar),
-                       ref_list))
+        res = list(map(match_func, tqdm(atoms_list, desc="Computing matches and RMSDs",
+                                        disable=not enable_progress_bar), ref_list))
     assert len(res) == len(atoms_list)
 
     valid_res = [r if atoms.valid and ref_atoms.valid else None
                  for r, atoms, ref_atoms in zip(res, atoms_list, ref_list)]
 
-    return res, valid_res
+    # counting matches and RMSD
+    match_count = sum(rmsd is not None for rmsd in res)
+    filtered_rmsds = [rmsd for rmsd in res if rmsd is not None]
+    mean_rmsd = np.mean(filtered_rmsds)
+
+    # counting valid matches and RMSD
+    valid_match_count = sum(rmsd is not None for rmsd in valid_res)
+    filtered_valid_rmsds = [rmsd for rmsd in valid_res if rmsd is not None]
+    valid_mean_rmsd = np.mean(filtered_valid_rmsds)
+
+    # counting corrected RMSD in which non-matched structures are penalized
+    corr_rmsds = [rmsd if rmsd is not None else stol for rmsd in res]
+    corr_valid_rmsds = [rmsd if rmsd is not None else stol for rmsd in valid_res]
+    corr_rmsd = np.mean(corr_rmsds)
+    valid_corr_rmsd = np.mean(corr_valid_rmsds)
+
+    return (match_count / len(atoms_list), float(mean_rmsd),
+            valid_match_count / len(atoms_list), float(valid_mean_rmsd),
+            res, valid_res,
+            float(corr_rmsd),
+            float(valid_corr_rmsd))
+
+
+def metre_rmsds(atoms_list: Sequence[ValidAtoms], ref_list: Sequence[ValidAtoms], ltol: float = 0.2,
+                stol: float = 0.3, angle_tol: float = 5.0, number_cpus: Optional[int] = None,
+                check_reduced: bool = True, enable_progress_bar: bool = True) -> Tuple[float, float, float, float,
+                                                                                       List[Optional[float]],
+                                                                                       List[Optional[float]], float,
+                                                                                       float]:
+    """
+    Match the structures in the first sequence of validated atoms with the structures at any index in the second
+    sequence of validated atoms and return the minimum root-mean-square displacements between the matching structures.
+    The validity of structures is determined by the ValidAtoms class.
+
+    The root-mean-square displacements are normalized by (volume / number_sites) ** (1/3).
+    If a structure does not match with any other structure, the corresponding root-mean-square displacement is None, and
+    it will be ignored in the mean root-mean-square displacement calculation. For the corrected root-mean-square
+    displacement, if a structure does not match with any other structure, the corresponding corrected root-mean-square
+    displacement is stol.
+
+    This method uses PyMatgen's StructureMatcher to compare the structures (see
+    https://pymatgen.org/pymatgen.analysis.html).
+
+    Before comparing two structures, this function first checks whether the two structures are of the same composition.
+    If the two compositions do not match, the structures do not match. If check_reduced is True, structures are checked
+    even if they are simple multiples of each other.
+
+    :param atoms_list:
+        First sequence of ase.Atoms instances.
+    :type atoms_list: Sequence[ValidAtoms]
+    :param ref_list:
+        Second sequence of ase.Atoms instances.
+    :type ref_list: Sequence[ValidAtoms]
+    :param ltol:
+        Fractional length tolerance for pymatgen's StructureMatcher.
+        Defaults to 0.2 (pymatgen's default).
+    :type ltol: float
+    :param stol:
+        Site tolerance for pymatgen's StructureMatcher.
+        Defaults to 0.3 (pymatgen's default).
+    :type stol: float
+    :param angle_tol:
+        Angle tolerance in degrees for pymatgen's StructureMatcher.
+        Defaults to 5.0 (pymatgen's default).
+    :type angle_tol: float
+    :param number_cpus:
+        Number of CPUs to use for multiprocessing. If None, use os.cpu_count().
+        Defaults to None.
+    :type number_cpus: Optional[int]
+    :param check_reduced:
+        If True, structures are checked even if they are simple multiples of each other.
+        Defaults to True.
+    :type check_reduced: bool
+    :param enable_progress_bar:
+        If True, show a progress bar.
+        Defaults to True.
+    :type enable_progress_bar: bool
+
+    :return:
+        The match-everyone-to-reference rate considering all structures,
+        The standard mean root-mean-square displacement considering all structures,
+        The match-everyone-to-reference rate considering valid structures,
+        The standard mean root-mean-square displacement considering valid structures,
+        The list of rmsds measured with respect to the reference set.
+        The list of valid rmsds measured with respect to the reference set.
+        The corrected root-mean-square displacement associated with all structures,
+        The corrected root-mean-square displacement associated with valid structures.
+    :rtype: Tuple[float, float, float, float, List[Optional[float]], List[Optional[float]], float, float]
+
+    :raises ValueError:
+        If the number of CPUs is not None and smaller than 1.
+    """
+    if len(atoms_list) != len(ref_list):
+        warnings.warn("The number of structures in the generated atoms list differs from the number of atoms in "
+                      "the reference list.")
+    if len(atoms_list) > len(ref_list):
+        raise ValueError("The number of structures in the generated atoms list is greater than the number of atoms in "
+                         "the reference list.")
+    if number_cpus is not None and number_cpus < 1:
+        raise ValueError("The number of CPUs must be at least 1.")
+
+    cpu_count = number_cpus if number_cpus is not None else os.cpu_count()
+
+    # We cannot use lambda functions so we use (partial) global functions instead.
+    match_func = partial(_get_match_and_rmsd_sequence, sequence_atoms_two=ref_list, ltol=ltol, stol=stol,
+                            angle_tol=angle_tol, check_reduced=check_reduced)
+    if cpu_count > 1:
+        res = process_map(match_func, atoms_list, desc="Computing METRe and RMSDs",
+                            chunksize=max(min(len(atoms_list) // cpu_count, 100), 1), max_workers=cpu_count,
+                            disable=not enable_progress_bar)
+    else:
+        res = list(map(match_func, tqdm(atoms_list, desc="Computing METRe and RMSDs", disable=not enable_progress_bar)))
+    assert len(res) == len(atoms_list)
+
+    rmsds_ref = [None for _ in range(len(ref_list))]
+    valid_rmsds_ref = [None for _ in range(len(ref_list))]
+    for r, atoms in zip(res, atoms_list):
+        if r is not None:
+            for rmsd, index in r:  # index is in ref_list
+                assert rmsd is not None and index is not None
+                if rmsds_ref[index] is None:
+                    rmsds_ref[index] = rmsd  # add if there are no other entries
+                elif rmsd < rmsds_ref[index]:
+                    rmsds_ref[index] = rmsd  # update if this is the best match
+                # repeat but if the structures are valid
+                if atoms.valid and ref_list[index].valid:
+                    if valid_rmsds_ref[index] is None:
+                        valid_rmsds_ref[index] = rmsd
+                    elif rmsd < valid_rmsds_ref[index]:
+                        valid_rmsds_ref[index] = rmsd
+
+    # counting matches and RMSD
+    match_count = sum(rmsd is not None for rmsd in rmsds_ref)
+    filtered_rmsds = [rmsd for rmsd in rmsds_ref if rmsd is not None]
+    mean_rmsd = np.mean(filtered_rmsds)
+
+    # counting valid matches and RMSD
+    valid_match_count = sum(rmsd is not None for rmsd in valid_rmsds_ref)
+    filtered_valid_rmsds = [rmsd for rmsd in valid_rmsds_ref if rmsd is not None]
+    valid_mean_rmsd = np.mean(filtered_valid_rmsds)
+
+    # counting corrected RMSD in which non-matched structures are penalized
+    corr_rmsds = [rmsd if rmsd is not None else stol for rmsd in rmsds_ref]
+    corr_valid_rmsds = [rmsd if rmsd is not None else stol for rmsd in valid_rmsds_ref]
+    corr_rmsd = np.mean(corr_rmsds)
+    valid_corr_rmsd = np.mean(corr_valid_rmsds)
+
+    return (match_count / len(ref_list), float(mean_rmsd),
+            valid_match_count / len(ref_list), float(valid_mean_rmsd),
+            rmsds_ref, valid_rmsds_ref,
+            float(corr_rmsd),
+            float(valid_corr_rmsd))

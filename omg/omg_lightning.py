@@ -351,15 +351,13 @@ class OMGLightning(lightning.LightningModule):
             ref_valid_atoms = ValidAtoms.get_valid_atoms(self.reference_atoms, desc="Validating reference structures",
                                                          skip_validation=True, number_cpus=1)
 
-            rmsds, valid_rmsds = match_rmsds(gen_valid_atoms, ref_valid_atoms, ltol=0.3, stol=0.5, angle_tol=10.0,
-                                             number_cpus=self.number_cpus, enable_progress_bar=True)
-            match_count = sum(rmsd is not None for rmsd in rmsds)
-            match_rate = match_count / len(gen_valid_atoms)
-            filtered_rmsds = [rmsd for rmsd in rmsds if rmsd is not None]
-            mean_rmsd = np.mean(filtered_rmsds)
+            match_rate, mean_rmsd, _, _, _, _, corr_rmsd, _ = match_rmsds(
+                gen_valid_atoms, ref_valid_atoms, ltol=0.3, stol=0.5, angle_tol=10.0, number_cpus=self.number_cpus,
+                enable_progress_bar=True)
 
-            self.log("match_rate", match_rate, sync_dist=True)
+            self.log("match_rate", float(match_rate), sync_dist=True)
             self.log("mean_rmsd", float(mean_rmsd), sync_dist=True)
+            self.log("corr_rmsd", float(corr_rmsd), sync_dist=True)
         elif self._validation_metric == self.ValidationMetric.DNG_EVAL:
             assert len(self.generated_atoms) == len(self.reference_atoms)
             gen_valid_atoms = ValidAtoms.get_valid_atoms(self.generated_atoms, desc="Validating generated structures",

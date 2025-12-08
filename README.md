@@ -2,9 +2,13 @@
 
 [![Static Badge](https://img.shields.io/badge/ICML_2025-OpenReview.net-811913?labelColor=222529)](https://openreview.net/forum?id=gHGrzxFujU)
 [![arXiv](https://img.shields.io/badge/arXiv-2502.02582-maroon)](https://arxiv.org/abs/2502.02582)
-[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/OMatG)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20Checkpoints-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/OMatG)
 
-[![Python](https://img.shields.io/badge/python-3.10--3.13-blue?logo=python)](https://www.python.org/)
+[![Static Badge](https://img.shields.io/badge/NeurIPS_2025-OpenReview.net-811913?labelColor=222529)](https://openreview.net/forum?id=ig9ujp50D4)
+[![arXiv](https://img.shields.io/badge/arXiv-2509.12178-maroon)](https://arxiv.org/abs/2509.12178)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20Datasets-FFD21E?logo=huggingface&logoColor=000)](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter)
+
+[![Python](https://img.shields.io/badge/python-3.11--3.13-blue?logo=python)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.8-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Lightning](https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white)](https://github.com/Lightning-AI/lightning)
 
@@ -12,8 +16,11 @@
 ![Static Badge](https://img.shields.io/badge/Version-1.1.0-blue)
 
 A state-of-the-art generative model for crystal structure prediction and *de novo* generation of inorganic crystals. 
-This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) (also available 
-on [arXiv](https://arxiv.org/abs/2502.02582)) which should be [cited](#citing-omatg) when using it.
+This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) about the 
+generative model itself (expanded version available on [arXiv](https://arxiv.org/abs/2502.02582)), and the 
+[NeurIPS 2025 paper](https://openreview.net/forum?id=ig9ujp50D4) about newly introduced benchmark metrics and datasets 
+(expanded version available on [arXiv](https://arxiv.org/abs/2509.12178)). 
+These papers should be [cited](#citing-omatg) when using OMatG or the newly introduced benchmark metrics and datasets. 
 
 #### Crystal structure prediction of GaTe:
 
@@ -61,6 +68,10 @@ this notebook is part of a more general workshop on generative modeling and thus
 fashion pieces. The relevant beginner-friendly notebook that introduces generative modeling with short coding exercises
 is also available on [Kaggle](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion) 
 (with solutions [here](https://www.kaggle.com/code/philipphoellmer/generative-modeling-workshop-session-fashion-sols)).
+
+A tutorial notebook providing a crystallography primer is available on 
+[Kaggle](https://www.kaggle.com/code/mayamartirossyan/crystal-representations-primer). This primer is in particular 
+relevant for the newly introduced benchmark metrics and datasets.
 
 <details>
 <summary><b>Expand this section for a brief introduction to the theoretical background of OMatG.</b></summary>
@@ -347,7 +358,7 @@ The `model` section specifies the model architecture. In the above example, we j
 
 Install the dependencies (see [pyproject.toml](pyproject.toml)) and the `omg` package itself by running 
 `pip install .` within the base directory of this repository. For editable mode (recommended for developers), use 
-`pip install -e .` instead. You can use any Python version between 3.10 and 3.13. 
+`pip install -e .` instead. You can use any Python version between 3.11 and 3.13. 
 
 If the code in this repository changes, the command `pip install .` has to be executed again to also 
 change the code of the installed package. If you installed `omg` in editable mode, any changes in code are directly 
@@ -363,7 +374,7 @@ Installing the `omg` package as described above provides the `omg` command for t
 
 ## Included Datasets
 
-For convenience, we include several material datasets that can be used for training. They can be found in the 
+For convenience, we include several standard material datasets that can be used for training. They can be found in the 
 [```omg/data```](omg/data) directory and are described briefly below:
 
 - *MP-20*: 45,229 structures from the [Materials Project](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) with a maximum of 20 atoms per structure.
@@ -376,6 +387,32 @@ For convenience, we include several material datasets that can be used for train
   structures. In comparison to [MatterGen's](https://github.com/microsoft/mattergen) dataset, we removed 10% of the 
   training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
   made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
+
+We further provide the following newly cultivated datasets, most of which are included in the OMatG repository in the 
+[```omg/data```](omg/data) directory, and all of which can also be found on 
+[HuggingFace](https://huggingface.co/collections/colabfit/datasets-all-that-structure-matches-does-not-glitter):
+- *Carbon-24-unique*: The duplicate-pruned versions of *Carbon-24* containing 4,250 structures that were randomly split. 
+- *Carbon-24-unique-N-split*: The duplicate-pruned versions of *Carbon-24* that were split low-to-high so that training
+  set structures contain 6–10, validation set structures contain 12–14, and test set structures contain 16–24 atoms. 
+  Analogously, the high-to-low split has 10–24 atoms in the training set structures, 8 atoms in the validation set
+  structures, and 6 atoms in the test set structures.
+- *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*: Polymorph-aware splits of the 
+  corresponding datasets which sequester polymorphs (different structures of the same composition) to the same split.
+  The *Perov-5-polymorph-split* and *MP-20-polymorph-split* datasets are available in 
+  [```omg/data/perov_5_ps```](omg/data/perov_5_ps) and [```omg/data/mp_20_ps```](omg/data/mp_20_ps), respectively. 
+  The *Alex-MP-20-polymorph-split* is only available on 
+  [HuggingFace](https://huggingface.co/datasets/colabfit/Alex-MP-20_Polymorph_Split).
+-  Overfitting datasets for testing model handling of symmetries in 
+  [```omg/data/carbon_24_unique/overfitting_datasets```](omg/data/carbon_24_unique/overfitting_datasets): 
+    - *Carbon-X*: A dataset with 480 duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
+    - *Carbon-NXL*: A dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
+- Datasets with explicitly labeled chiral pairs that are only available on 
+  [HuggingFace](https://huggingface.co/collections/colabfit/carbon-24-martirossyan-et-al): 
+  - *Carbon-24-unique-with-enantiomorphs*: A duplicate-pruned version of *Carbon-24* with 4,330 structures where 
+    enantiomorph pairs are treated as distinct structures and labeled. By contrast in *Carbon-24-unique*, only one of 
+    each pair is included because PyMatgen's `StructureMatcher` cannot distinguish between chiral pairs.
+  - *Carbon-enantiomorphs*: A toy dataset of 160 chiral structures split into two sets, with enantiomorphic pairs of 
+    structures from *Carbon-24-unique-with-enantiomorphs* at the same index.
 
 ## Training
 
@@ -455,11 +492,18 @@ Run the following command to compute the metrics for the CSP task:
 omg csp_metrics --config=<configuration_file.yaml> --xyz_file=<xyz_file>
 ```
 
-This command attempts to match structures at the same index in the generated dataset and the prediction dataset. 
+This command computes a rate of matching structures using PyMatGen's 
+[`StructureMatcher`](https://github.com/materialsproject/pymatgen/blob/master/src/pymatgen/analysis/structure_matcher.py). 
 The metrics include the match rate between the generated structures and the structures in the prediction dataset, as 
-well as the average (normalized) root-mean square displacement between the matched structures. By default, these metrics
-are stored in the `csp_metrics.json` file. This command also plots the histogram of the root-mean-square distances 
-between the matched structures in the `rmsds.pdf` file. 
+well as the average (normalized) root-mean square displacement between the matched structures. 
+
+By default, structures are matched at the same index in the generated dataset and the prediction dataset. Optionally, 
+the match-everyone-to-reference (`METRe`) rate can be computed instead by specifying `--metre=True`, in which case the 
+best match from all generated structures are counted with respect to each structure in the prediction dataset.
+
+Typically, non-matching generated structures are ignored for the average root-mean square displacement. This command
+also reports an average corrected root-mean square error (`cRMSE`). Here, non-matching structures are penalized with the 
+site-tolerance matching parameter `stol` of the `StructureMatcher` in the average.
 
 By default, this method first validates the generated structures and the structures in the prediction dataset
 based on volume, structure, composition, and fingerprint checks (see [`ValidAtoms`](omg/analysis/valid_atoms.py) class), 
@@ -468,6 +512,11 @@ The (slow) validation can be skipped by using `skip_validation=True`.
 
 The validations and matchings are parallelized. The number of processes is determined by `os.cpu_count()`. This can 
 be changed by setting the `--number_cpus` argument (which is probably most useful in cluster environments).
+
+By default, these metrics are stored in the `csp_metrics.json` file. 
+
+This command also plots the histogram of the (uncorrected) root-mean-square distances between the matched structures in 
+the `rmsds.pdf` file. 
 
 Further arguments are documented in the `csp_metrics` method in the [`OMGTrainer`](omg/omg_trainer.py) class.
 
@@ -506,6 +555,24 @@ Please cite the following paper when using OMatG in your work:
     url={https://openreview.net/forum?id=gHGrzxFujU},
     archivePrefix={arXiv},
     eprint={2502.02582},
+    primaryClass={cs.LG},
+}
+```
+
+Please cite the following paper when using new benchmarks and datasets associated with OMatG:
+
+```bibtex
+@inproceedings{
+    martirossyan2025,
+    title={All that structure matches does not glitter},
+    author={Maya Martirossyan and Thomas Egg and Philipp H{\"o}llmer 
+    and George Karypis and Mark Transtrum and Adrian Roitberg 
+    and Mingjie Liu and Richard Hennig and Ellad B. Tadmor and Stefano Martiniani},
+    booktitle={Thirty-Ninth Annual Conference on Neural Information Processing Systems},
+    year={2025},
+    url={https://openreview.net/forum?id=ig9ujp50D4},
+    archivePrefix={arXiv},
+    eprint={2509.12178},
     primaryClass={cs.LG},
 }
 ```
