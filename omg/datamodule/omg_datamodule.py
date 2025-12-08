@@ -33,6 +33,13 @@ class OMGDataModule(LightningDataset):
         train_omg_dataset = OMGDataset(train_dataset)
         val_omg_dataset = OMGDataset(val_dataset)
         pred_omg_dataset = OMGDataset(pred_dataset)
+
+        # Not necessary but allows type checkers to know the OMGDataset types of the datasets.
+        self.train_dataset =  train_omg_dataset
+        self.val_dataset = val_omg_dataset
+        self.pred_dataset = pred_omg_dataset
+        self.test_dataset = None
+
         _ = DataLoader(train_omg_dataset, **kwargs)  # This allows Lightning CLI to infer the allowed kwargs.
         super().__init__(train_dataset=train_omg_dataset, val_dataset=val_omg_dataset, pred_dataset=pred_omg_dataset,
                          **kwargs)
