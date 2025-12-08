@@ -135,7 +135,8 @@ class StructureDataset(Dataset):
 
         assert (self._lazy_storage and self._structures == []) or (not self._lazy_storage and
                 len(self._structures) == self._number_structures)
-        for structure in self._structures:
+        for structure in tqdm(self._structures, desc="Processing structures", unit=" structures",
+                              disable=self._lazy_storage):
             if self._niggli_reduce:
                 structure.niggli_reduce()
             if self._convert_to_fractional:
@@ -267,7 +268,8 @@ class StructureDataset(Dataset):
               env.begin() as txn):
             number_structures = txn.stat()["entries"]
 
-            for int_key in tqdm(range(number_structures), desc=f"Loading {existing_lmdb_path} data"):
+            for int_key in tqdm(range(number_structures), desc=f"Loading {existing_lmdb_path} data",
+                                unit=" structures"):
                 data = txn.get(str(int_key).encode())
                 lmdb_structure = pickle.loads(data)
 
@@ -497,7 +499,8 @@ class StructureDataset(Dataset):
 
         with (lmdb.Environment(str(lmdb_path), subdir=False, map_size=int(1e12), lock=False) as env,
               env.begin(write=True) as txn):
-            for idx in tqdm(range(self._number_structures), desc=f"Saving structures to {lmdb_path}"):
+            for idx in tqdm(range(self._number_structures), desc=f"Saving structures to {lmdb_path}",
+                            unit=" structures"):
                 structure = self[idx]
                 # to_dictionary always returns Cartesian positions.
                 lmdb_structure = structure.to_dictionary()
@@ -517,7 +520,7 @@ class StructureDataset(Dataset):
         if xyz_path.exists():
             raise FileExistsError(f"XYZ path {xyz_path} already exists.")
 
-        for idx in tqdm(range(self._number_structures), desc=f"Saving structures to {xyz_path}"):
+        for idx in tqdm(range(self._number_structures), desc=f"Saving structures to {xyz_path}", unit=" structures"):
             structure = self[idx]
             atoms = structure.get_ase_atoms()
             write(str(xyz_path), atoms, format="extxyz", append=True)
