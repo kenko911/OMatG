@@ -1104,7 +1104,6 @@ class OMGTrainer(Trainer):
                     "pos": torch.from_numpy(struc.cart_coords),
                     "cell": torch.from_numpy(np.array(struc.lattice.matrix)),
                     "atomic_numbers": torch.from_numpy(np.array(struc.atomic_numbers, dtype=np.int32)),
-                    "ids": str(struc),
-                    "pbc": torch.tensor([1, 1, 1], dtype=torch.int32),
+                    "ids": str(struc)
                 }
                 txn.put(str(idx).encode(), pickle.dumps(data))

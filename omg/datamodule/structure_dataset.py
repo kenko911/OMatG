@@ -288,9 +288,9 @@ class StructureDataset(Dataset):
                 if not isinstance(lmdb_structure["atomic_numbers"], torch.Tensor):
                     raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of type "
                                     f"{type(lmdb_structure["atomic_numbers"])}, expected torch.Tensor.")
-                if not lmdb_structure["atomic_numbers"].dtype is torch.int:
+                if not lmdb_structure["atomic_numbers"].dtype in (torch.int64, torch.int32):
                     raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of dtype "
-                                    f"{lmdb_structure["atomic_numbers"].dtype}, expected torch.int.")
+                                    f"{lmdb_structure["atomic_numbers"].dtype}, expected torch.int64 or torch.int32.")
 
                 if "pos" not in lmdb_structure:
                     raise KeyError(f"Key {key} in the lmdb file does not contain 'pos'.")
@@ -460,7 +460,7 @@ class StructureDataset(Dataset):
 
                 pos = torch.tensor(pymatgen_structure.cart_coords)
                 cell = torch.tensor(pymatgen_structure.lattice.matrix)
-                atomic_numbers = torch.tensor(pymatgen_structure.atomic_numbers, dtype=torch.int32)
+                atomic_numbers = torch.tensor(pymatgen_structure.atomic_numbers, dtype=torch.int64)
 
                 metadata = {"file_path": str(cache_file), "file_key": structure_index}
                 if "material_id" in csv_columns:

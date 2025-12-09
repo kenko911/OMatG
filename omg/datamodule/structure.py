@@ -93,7 +93,7 @@ class Structure(object):
         """
         return cls(
             cell=data["cell"],
-            atomic_numbers=data["atomic_numbers"],
+            atomic_numbers=data["atomic_numbers"].to(torch.int64),  # For potential cross-entropy loss, ensure int64.
             pos=data["pos"],
             property_dict={prop: data[prop] for prop in property_keys},
             metadata=metadata,
