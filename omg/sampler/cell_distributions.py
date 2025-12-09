@@ -14,7 +14,7 @@ class MirrorCell(CellDistribution):
         """Constructor of the MirrorCell class."""
         super().__init__()
 
-    def __call__(self, cell: torch.Tensor) -> torch.Tensor:
+    def __call__(self, cell: torch.Tensor) -> np.ndarray:
         """
         Sample a cell from the base distribution given the cell of a single structure.
 
@@ -26,8 +26,8 @@ class MirrorCell(CellDistribution):
 
         :return:
             A sampled cell from the base distribution in a tensor of shape (3, 3).
+        :rtype: np.ndarray
         """
-        # TODO: Return should be torch tensor.
         return cell.detach().clone().cpu().numpy()
 
 
@@ -57,7 +57,7 @@ class NormalCellDistribution(CellDistribution):
         self._loc = loc
         self._scale = scale
 
-    def __call__(self, cell: torch.Tensor) -> torch.Tensor:
+    def __call__(self, cell: torch.Tensor) -> np.ndarray:
         """
         Sample a cell from the base distribution given the cell of a single structure.
 
@@ -67,7 +67,7 @@ class NormalCellDistribution(CellDistribution):
 
         :return:
             A sampled cell from the base distribution in a tensor of shape (3, 3).
-        :rtype: torch.Tensor
+        :rtype: np.ndarray
         """
         return np.random.normal(loc=self._loc, scale=self._scale, size=cell.shape)
 
@@ -116,7 +116,7 @@ class InformedLatticeDistribution(CellDistribution):
         self._length_distribution = LogNormal(torch.tensor(self._length_log_means, device="cpu"),
                                               torch.tensor(self._length_log_stds, device="cpu"))
 
-    def __call__(self, cell: torch.Tensor) -> torch.Tensor:
+    def __call__(self, cell: torch.Tensor) -> np.ndarray:
         """
         Sample a cell from the informed base distribution given the cell of a single structure.
 
@@ -126,6 +126,7 @@ class InformedLatticeDistribution(CellDistribution):
 
         :return:
             A sampled cell from the base distribution in a tensor of shape (3, 3).
+        :rtype: np.ndarray
         """
         lengths = self._length_distribution.sample().numpy()
         # Generate uniform angles between 60 and 120 degrees.

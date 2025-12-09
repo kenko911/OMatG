@@ -14,7 +14,7 @@ class MirrorPosition(PositionDistribution):
         """Constructor of the MirrorPosition class."""
         super().__init__()
 
-    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[torch.Tensor, bool]:
+    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[np.ndarray, bool]:
         """
         Sample positions from the base distribution given the atomic positions of a single structure.
 
@@ -30,9 +30,8 @@ class MirrorPosition(PositionDistribution):
         :return:
             (A sample of positions from the base distribution in a tensor of shape (number_atoms, 3),
              Whether the sampled positions are in fractional coordinates.)
-        :rtype: tuple[torch.Tensor, bool]
+        :rtype: tuple[np.ndarray, bool]
         """
-        # TODO: Return should be torch tensor.
         return pos.detach().clone().cpu().numpy(), pos_is_fractional
 
 
@@ -62,7 +61,7 @@ class NormalPositionDistribution(PositionDistribution):
         self._loc = loc
         self._scale = scale
 
-    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[torch.Tensor, bool]:
+    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[np.ndarray, bool]:
         """
         Sample fractional positions from the base distribution given the atomic positions of a single structure.
 
@@ -76,7 +75,7 @@ class NormalPositionDistribution(PositionDistribution):
         :return:
             (A sample of positions from the base distribution in a tensor of shape (number_atoms, 3),
              Whether the sampled positions are in fractional coordinates.)
-        :rtype: tuple[torch.Tensor, bool]
+        :rtype: tuple[np.ndarray, bool]
         """
         return np.random.normal(loc=self._loc, scale=self._scale, size=pos.shape), True
 
@@ -90,7 +89,7 @@ class UniformPositionDistribution(PositionDistribution):
         """Constructor of the UniformPositionDistribution class."""
         super().__init__()
 
-    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[torch.Tensor, bool]:
+    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[np.ndarray, bool]:
         """
         Sample fractional positions from the base distribution given the atomic positions of a single structure.
 
@@ -104,7 +103,7 @@ class UniformPositionDistribution(PositionDistribution):
         :return:
             (A sample of positions from the base distribution in a tensor of shape (number_atoms, 3),
              Whether the sampled positions are in fractional coordinates.)
-        :rtype: tuple[torch.Tensor, bool]
+        :rtype: tuple[np.ndarray, bool]
         """
         return np.random.uniform(low=0.0, high=1.0, size=pos.shape), True
 
@@ -120,7 +119,7 @@ class SobolSequence(PositionDistribution):
         # Three dimensions for x, y, z.
         self._sampler = torch.quasirandom.SobolEngine(dimension=3, scramble=True)
 
-    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[torch.Tensor, bool]:
+    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[np.ndarray, bool]:
         """
         Sample fractional positions from the base distribution given the atomic positions of a single structure.
 
@@ -134,7 +133,7 @@ class SobolSequence(PositionDistribution):
         :return:
             (A sample of positions from the base distribution in a tensor of shape (number_atoms, 3),
              Whether the sampled positions are in fractional coordinates.)
-        :rtype: tuple[torch.Tensor, bool]
+        :rtype: tuple[np.ndarray, bool]
         """
         assert len(pos.shape) == 2
         assert pos.shape[1] == 3

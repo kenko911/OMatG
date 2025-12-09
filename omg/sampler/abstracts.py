@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from numpy.typing import NDArray
 import torch
 
 
@@ -16,7 +15,7 @@ class SpeciesDistribution(ABC):
         super().__init__()
 
     @abstractmethod
-    def __call__(self, species: torch.Tensor) -> NDArray[np.int64]:
+    def __call__(self, species: torch.Tensor) -> np.ndarray:
         """
         Sample species from the base distribution given the species of a single structure.
 
@@ -28,7 +27,7 @@ class SpeciesDistribution(ABC):
 
         :return:
             A sample of species from the base distribution in a tensor of shape (number_atoms, ).
-        :rtype: NDArray[np.int64]
+        :rtype: np.ndarray
         """
         raise NotImplementedError
 
@@ -45,9 +44,11 @@ class CellDistribution(ABC):
         super().__init__()
 
     @abstractmethod
-    def __call__(self, cell: torch.Tensor) -> torch.Tensor:
+    def __call__(self, cell: torch.Tensor) -> np.ndarray:
         """
         Sample a cell from the base distribution given the cell of a single structure.
+
+        We use numpy arrays for the returned array because numpy offers a broader collection of distributions.
 
         :param cell:
             The cell of a single structure in a tensor of shape (3, 3).
@@ -55,6 +56,7 @@ class CellDistribution(ABC):
 
         :return:
             A sampled cell from the base distribution in a tensor of shape (3, 3).
+        :rtype: np.ndarray
         """
         raise NotImplementedError
 
@@ -73,9 +75,11 @@ class PositionDistribution(ABC):
         super().__init__()
 
     @abstractmethod
-    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[torch.Tensor, bool]:
+    def __call__(self, pos: torch.Tensor, pos_is_fractional: bool) -> tuple[np.ndarray, bool]:
         """
         Sample positions from the base distribution given the atomic positions of a single structure.
+
+        We use numpy arrays for the returned array because numpy offers a broader collection of distributions.
 
         :param pos:
             A tensor of shape (number_atoms, 3) containing the positions of the atoms in the structure.
@@ -87,6 +91,6 @@ class PositionDistribution(ABC):
         :return:
             (A sample of positions from the base distribution in a tensor of shape (number_atoms, 3),
              Whether the sampled positions are in fractional coordinates.)
-        :rtype: tuple[torch.Tensor, bool]
+        :rtype: tuple[np.ndarray, bool]
         """
         raise NotImplementedError
