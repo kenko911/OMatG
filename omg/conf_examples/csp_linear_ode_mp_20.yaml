@@ -39,15 +39,16 @@ model:
     pos_loss_b: 0.9994149341846618
     cell_loss_b: 0.0005850658153382233
   sampler:
-    class_path: omg.sampler.sample_from_rng.SampleFromRNG
+    class_path: omg.sampler.IndependentSampler
     init_args:
-      pos_distribution: null
+      pos_distribution:
+        class_path: omg.sampler.position_distributions.UniformPositionDistribution
       cell_distribution:
-        class_path: omg.sampler.distributions.InformedLatticeDistribution
+        class_path: omg.sampler.cell_distributions.InformedLatticeDistribution
         init_args:
           dataset_name: mp_20
       species_distribution:
-        class_path: omg.sampler.distributions.MirrorData
+        class_path: omg.sampler.species_distributions.MirrorSpecies
   model:
     class_path: omg.model.model.Model
     init_args:
@@ -65,32 +66,23 @@ model:
   dataset_name: "mp_20"
 data:
   train_dataset:
-    class_path: omg.datamodule.dataloader.OMGTorchDataset
+    class_path: omg.datamodule.StructureDataset
     init_args:
-      dataset:
-        class_path: omg.datamodule.datamodule.DataModule
-        init_args:
-          lmdb_paths:
-           - "data/mp_20/train.lmdb"
-      niggli: False
+      file_path: "data/mp_20/train.lmdb"
+      lazy_storage: False
+      niggli_reduce: False
   val_dataset:
-    class_path: omg.datamodule.dataloader.OMGTorchDataset
+    class_path: omg.datamodule.StructureDataset
     init_args:
-      dataset:
-        class_path: omg.datamodule.datamodule.DataModule
-        init_args:
-          lmdb_paths:
-           - "data/mp_20/val.lmdb"
-      niggli: False
-  predict_dataset:
-    class_path: omg.datamodule.dataloader.OMGTorchDataset
+      file_path: "data/mp_20/val.lmdb"
+      lazy_storage: False
+      niggli_reduce: False
+  pred_dataset:
+    class_path: omg.datamodule.StructureDataset
     init_args:
-      dataset:
-        class_path: omg.datamodule.datamodule.DataModule
-        init_args:
-          lmdb_paths:
-           - "data/mp_20/test.lmdb"
-      niggli: False
+      file_path: "data/mp_20/test.lmdb"
+      lazy_storage: False
+      niggli_reduce: False
   batch_size: 1024
 trainer:
   callbacks:
