@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 import torch
 from omg.globals import MAX_ATOM_NUM
 from .abstracts import SpeciesDistribution
@@ -13,7 +14,7 @@ class MirrorSpecies(SpeciesDistribution):
         """Constructor of the MirrorSpecies class."""
         super().__init__()
 
-    def __call__(self, species: torch.Tensor) -> torch.Tensor:
+    def __call__(self, species: torch.Tensor) -> NDArray[np.int64]:
         """
         Sample species from the base distribution given the species of a single structure.
 
@@ -25,8 +26,8 @@ class MirrorSpecies(SpeciesDistribution):
 
         :return:
             A sample of species from the base distribution in a tensor of shape (number_atoms, ).
+        :rtype: NDArray[np.int64]
         """
-        # TODO: Return should be torch tensor.
         return species.detach().clone().cpu().numpy()
 
 
@@ -55,7 +56,7 @@ class UniformSpeciesDistribution(SpeciesDistribution):
         self._low = low
         self._high = high
 
-    def __call__(self, species: torch.Tensor) -> torch.Tensor:
+    def __call__(self, species: torch.Tensor) -> NDArray[np.int64]:
         """
         Sample species from the base distribution given the species of a single structure.
 
@@ -68,8 +69,9 @@ class UniformSpeciesDistribution(SpeciesDistribution):
 
         :return:
             A sample of species from the base distribution in a tensor of shape (number_atoms, ).
+        :rtype: NDArray[np.int64]
         """
-        return np.random.randint(low=self._low, high=self._high, size=len(species))
+        return np.random.randint(low=self._low, high=self._high, size=len(species), dtype=np.int64)
 
 
 class MaskSpeciesDistribution(SpeciesDistribution):
@@ -87,7 +89,7 @@ class MaskSpeciesDistribution(SpeciesDistribution):
         super().__init__()
         self._token = token
 
-    def __call__(self, species: torch.Tensor) -> torch.Tensor:
+    def __call__(self, species: torch.Tensor) -> NDArray[np.int64]:
         """
         Sample species from the base distribution given the species of a single structure.
 
@@ -100,5 +102,7 @@ class MaskSpeciesDistribution(SpeciesDistribution):
 
         :return:
             A sample of species from the base distribution in a tensor of shape (number_atoms, ).
+        :rtype: NDArray[np.int64]
         """
-        return np.ones(len(species)) * self._token
+        # noinspection PyTypeChecker
+        return np.ones(len(species), dtype=np.int64) * self._token

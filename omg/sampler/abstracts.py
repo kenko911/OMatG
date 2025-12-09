@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import numpy as np
+from numpy.typing import NDArray
 import torch
 
 
@@ -14,9 +16,11 @@ class SpeciesDistribution(ABC):
         super().__init__()
 
     @abstractmethod
-    def __call__(self, species: torch.Tensor) -> torch.Tensor:
+    def __call__(self, species: torch.Tensor) -> NDArray[np.int64]:
         """
         Sample species from the base distribution given the species of a single structure.
+
+        We use numpy arrays for the returned array because numpy offers a broader collection of distributions.
 
         :param species:
             The atomic numbers of all atoms in the structure in a tensor of shape (number_atoms, ).
@@ -24,6 +28,7 @@ class SpeciesDistribution(ABC):
 
         :return:
             A sample of species from the base distribution in a tensor of shape (number_atoms, ).
+        :rtype: NDArray[np.int64]
         """
         raise NotImplementedError
 
