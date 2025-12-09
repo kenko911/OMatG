@@ -14,21 +14,17 @@ class IndependentSampler(Sampler):
 
     :param species_distribution:
         The species base distribution to sample species from.
-        Defaults to UniformSpeciesDistribution().
     :type species_distribution: SpeciesDistribution
     :param pos_distribution:
         The position base distribution to sample positions from.
-        Defaults to UniformPositionDistribution().
     :type pos_distribution: PositionDistribution
     :param cell_distribution:
         The cell base distribution to sample cells from.
-        Defaults to NormalCellDistribution(loc=1.0, scale=1.0).
     :type cell_distribution: CellDistribution
     """
 
-    def __init__(self, species_distribution: SpeciesDistribution = UniformSpeciesDistribution(),
-                 pos_distribution: PositionDistribution = UniformPositionDistribution(),
-                 cell_distribution: CellDistribution = NormalCellDistribution(loc=1.0, scale=1.0)) -> None:
+    def __init__(self, species_distribution: SpeciesDistribution, pos_distribution: PositionDistribution,
+                 cell_distribution: CellDistribution) -> None:
         """Constructor for the IndependentSampler class."""
         super().__init__()
         self._species_distribution = species_distribution
