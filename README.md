@@ -173,52 +173,50 @@ lr_scheduler:
 #### LightingDataModule
 
 The `data` section of the configuration constructs the `OMGDataModule` (see 
-[```omg/datamodule/dataloader.py```](omg/datamodule/dataloader.py)). It mainly expects the 
-`train_dataset`, `val_dataset`, and `predict_dataset` sections. Each of these sections should construct an 
-`OMGTorchDataset` (see [```omg/datamodule/dataloader.py```](omg/datamodule/dataloader.py) again). This can be done based 
-on [lmdb files](https://lmdb.readthedocs.io/en/release/):
+[```omg/datamodule/omg_datamodule.py```](omg/datamodule/omg_datamodule.py)). It mainly expects the 
+`train_dataset`, `val_dataset`, and `pred_dataset` sections. Each of these sections should construct an 
+`StructureDataset` (see [```omg/datamodule/structure_dataset.py```](omg/datamodule/structure_dataset.py)). This can be 
+done based on [LMDB](https://lmdb.readthedocs.io/en/release/) or CSV files:
 
 ```yaml
 data:
   train_dataset:
-    class_path: omg.datamodule.dataloader.OMGTorchDataset
+    class_path: omg.datamodule.StructureDataset
     init_args:
-      dataset:
-        class_path: omg.datamodule.datamodule.DataModule
-        init_args:
-          lmdb_paths:
-           - "data/mp_20/train.lmdb"
-      niggli: False
+      file_path: "data/mp_20/train.lmdb"
+      lazy_storage: False
+      niggli_reduce: False  # Apply ASE's Niggli reduction to all structures.
   val_dataset:
-    class_path: omg.datamodule.dataloader.OMGTorchDataset
+    class_path: omg.datamodule.StructureDataset
     init_args:
-      dataset:
-        class_path: omg.datamodule.datamodule.DataModule
-        init_args:
-          lmdb_paths:
-           - "data/mp_20/val.lmdb"
-      niggli: False
-  predict_dataset:
-    class_path: omg.datamodule.dataloader.OMGTorchDataset
+      file_path: "data/mp_20/val.lmdb"
+      lazy_storage: False
+      niggli_reduce: False  # Apply ASE's Niggli reduction to all structures.
+  pred_dataset:
+    class_path: omg.datamodule.StructureDataset
     init_args:
-      dataset:
-        class_path: omg.datamodule.datamodule.DataModule
-        init_args:
-          lmdb_paths:
-           - "data/mp_20/test.lmdb"
-      niggli: False
+      file_path: "data/mp_20/test.lmdb"
+      lazy_storage: False
+      niggli_reduce: False  # Apply ASE's Niggli reduction to all structures.
   batch_size: 32
   num_workers: 4
   pin_memory: True
   persistent_workers: True
 ```
 
-Every record in the lmdb files should contain a crystal structure. The key of each record is assumed to be an 
+Every record in the LMDB files should contain a crystal structure. The key of each record is assumed to be an 
 (arbitrary) encoded string, while the value is assumed to be a pickled dictionary with, at least, the following keys:
-- `pos`: A `torch.Tensor` of shape `(N, 3)` containing the fractional coordinates of the atoms in the crystal structure.
+- `pos`: A `torch.Tensor` of shape `(N, 3)` containing the Cartesian coordinates of the atoms in the crystal structure.
 - `cell`: A `torch.Tensor` of shape `(3, 3)` containing the lattice vectors of the crystal structure.
 - `atomic_numbers`: A `torch.Tensor` of shape `(N,)` containing the atomic numbers of the atoms in the crystal 
    structure.
+
+CSV files should contain a `cif` column with the CIF representation of the structures. This will be used to infer the 
+cell, atomic numbers, and positions of the structures.
+
+For large datasets, it is possible to read the structures lazily from disk by setting `lazy_storage: True` in the
+`init_args` of the respective dataset section. In this case, the structures are only read from disk when they are
+accessed. CSV files are converted to lmdb files in this case for faster access.
 
 The `data` section can also contain additional parameters for the data loading (such as `batch_size`, `num_workers`,
 `pin_memory`, and `persistent_workers` in the above example). These parameters are passed to the underlying 
@@ -288,17 +286,16 @@ model:
     pos_loss_b: 0.999
     cell_loss_b: 0.001
   sampler:
-    class_path: omg.sampler.sample_from_rng.SampleFromRNG
+    class_path: omg.sampler.IndependentSampler
     init_args:
-      # Uniform distribution for fractional coordinates.
-      pos_distribution: null
+      pos_distribution:
+        class_path: omg.sampler.position_distributions.UniformPositionDistribution
       cell_distribution:
-        class_path: omg.sampler.distributions.InformedLatticeDistribution
+        class_path: omg.sampler.cell_distributions.InformedLatticeDistribution
         init_args:
           dataset_name: mp_20
       species_distribution:
-        # For DNG, use omg.sampler.distributions.MaskDistribution.
-        class_path: omg.sampler.distributions.MirrorData
+        class_path: omg.sampler.species_distributions.MirrorSpecies
   model:
     class_path: omg.model.model.Model
     init_args:
@@ -340,15 +337,14 @@ on the choice of the stochastic interpolant, one should choose the matching base
 - [`SingleStochasticInterpolant`](omg/si/single_stochastic_interpolant.py): The choice of the base distribution is 
   arbitrary. As in the example above, we typically use a uniform distribution for the fractional coordinates and an
   informed base distribution for the lattice vectors.
-- [`SingleStochasticInterpolantOS`](omg/si/single_stochastic_interpolant_os.py): Explicitly assumes a 
-  [`NormalDistribution`](omg/sampler/distributions.py).
+- [`SingleStochasticInterpolantOS`](omg/si/single_stochastic_interpolant_os.py): Explicitly assumes a normal base distribution.
 - [`SingleStochasticInterpolantIdentity`](omg/si/single_stochastic_interpolant_identity.py): Explicitly assumes that
-  the training data is just taken over in the "random" sample as implemented by the 
-  [`MirrorData`](omg/sampler/distributions.py) distribution.
+  the training data is just taken over in the "random" sample as implemented by the mirror distributions.
 - [`DiscreteFlowMatchingMask`](omg/si/discrete_flow_matching_mask.py): Explicitly assumes fully masked samples as the
-  base distribution as implemented in the [`MaskDistribution`](omg/sampler/distributions.py).
+  base distribution as implemented in the [`MaskSpeciesDistribution`](omg/sampler/species_distributions.py).
 - [`DiscreteFlowMatchingUniform`](omg/si/discrete_flow_matching_uniform.py): Explicitly assumes uniformly distributed
-  atomic species as the base distribution which can achieved by using `species_distribution: null`.
+  atomic species as the base distribution as implemented in the 
+  [`UniformSpeciesDistribution`](omg/sampler/species_distributions.py).
 
 The `model` section specifies the model architecture. In the above example, we just use DiffCSPNet.
 
