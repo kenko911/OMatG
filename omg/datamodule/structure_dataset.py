@@ -24,12 +24,14 @@ class StructureDataset(Dataset):
     efficient key-value storage and retrieval.
 
     If lazy_storage is set to False, all structures are read from the file during initialization and stored in memory.
+    If lazy_storage is set to True, only the structure keys in the LMDB database are stored in memory, and the
+    structures are read from the LMDB file when they are requested via the __getitem__ method.
 
     The supported file formats for the storage of crystalline structures are LMDB and CSV. The specific format is
     inferred from the file extension.
 
     The _from_lmdb and _from_csv methods are used to read the structures from the respective file formats on
-    initialization of this class. If lazy_storage is set to True, the _from_lmdb method basically serves as a test case
+    initialization of this class. If lazy_storage is set to True, the _from_lmdb method also serves as a test case
     for the LMDB reading functionality.
 
     Since preprocessing CSV files can be costly, the _from_csv method reads structures from a CSV file containing CIF
@@ -39,7 +41,7 @@ class StructureDataset(Dataset):
     cache file already exists, it is used directly instead of creating a new one.
 
     The _from_lmdb and _from_csv methods document the expected file contents for their respective file types in more
-    detail. Additional parser keyword arguments of the _from_lmdb and _from_csv methods can be passed via parser_kwargs.
+    detail.
 
     This class also provides methods to save all the structures in LMDB or xyz format.
 
@@ -117,31 +119,33 @@ class StructureDataset(Dataset):
             if cdvae_preprocessing is not None or mattergen_preprocessing is not None:
                 warnings.warn("CDVAE and MatterGen preprocessing options are ignored when reading from LMDB files.")
             # noinspection PyArgumentList
-            self._file_path, self._number_structures, self._structures = self._from_lmdb(
+            self._file_path, self._structures = self._from_lmdb(
                 existing_file_path, self._property_keys, return_structures=not lazy_storage)
         elif path.suffix == ".csv":
             if cdvae_preprocessing is None or mattergen_preprocessing is None:
                 raise ValueError("When reading from CSV files, both cdvae_preprocessing and mattergen_preprocessing "
                                  "options must be specified.")
-            self._file_path, self._number_structures, self._structures = self._from_csv(
+            self._file_path, self._structures = self._from_csv(
                 existing_file_path, self._property_keys, return_structures=not lazy_storage,
                 cdvae_preprocessing=cdvae_preprocessing, mattergen_preprocessing=mattergen_preprocessing)
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}. Supported formats are .lmdb and .csv.")
+        self._number_structures = len(self._structures)
+        assert self._number_structures > 0
 
         self._lazy_storage = lazy_storage
         self._convert_to_fractional = convert_to_fractional
         self._niggli_reduce = niggli_reduce
 
-        assert (self._lazy_storage and self._structures == []) or (not self._lazy_storage and
-                len(self._structures) == self._number_structures)
-        for structure in tqdm(self._structures, desc="Processing structures", unit=" structures",
-                              disable=self._lazy_storage):
-            if self._niggli_reduce:
-                structure.niggli_reduce()
-            if self._convert_to_fractional:
-                structure.convert_to_fractional()
-            structure.to(self._torch_precision)
+        # Preprocess structures if not using lazy storage.
+        # If using lazy storage, preprocessing will be done when the structures are read.
+        if not self._lazy_storage:
+            for structure in tqdm(self._structures, desc="Processing structures", unit=" structures"):
+                if self._niggli_reduce:
+                    structure.niggli_reduce()
+                if self._convert_to_fractional:
+                    structure.convert_to_fractional()
+                structure.to(self._torch_precision)
 
         if self._lazy_storage:
             # Read structures lazily from this file.
@@ -214,15 +218,14 @@ class StructureDataset(Dataset):
 
     @staticmethod
     def _from_lmdb(existing_lmdb_path: Path, property_keys: Sequence[str],
-                   return_structures: bool) -> tuple[Path, int, list[Structure]]:
+                   return_structures: bool) -> tuple[Path, Union[list[Structure], list[bytes]]]:
         """
-        Check proper format of the LMDB file for crystalline structures and return its path, the number of structures,
-        and optionally the structures themselves.
+        Check proper format of the LMDB file for crystalline structures and return its path, and the structures or
+        their keys within the LMDB file.
 
-        The records (keys) in the LMDB file are expected to be encoded integers starting from 0 to N_S-1, where N_S is
-        the number of structures in the file.
+        The keys in the LMDB file are expected to be bytes.
 
-        Each record (key) in the LMDB file is expected to contain a pickled dictionary with at least the following keys
+        Each key (record) in the LMDB file is expected to contain a pickled dictionary with at least the following keys
         to represent a structure with N atoms:
         - "cell": A 3x3 torch.Tensor of the lattice vectors.
                   The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
@@ -240,8 +243,8 @@ class StructureDataset(Dataset):
         structure.
 
         In order to verify the correctness of the LMDB file, this method reads all records and checks for the presence
-        and correct types of the required keys. If return_structures is set to True, the created structures are also
-        returned.
+        and correct types of the required keys. If return_structures is set to True, the created structures are
+        returned. If return_structures is set to False, only the keys of the structures in the LMDB file are returned.
 
         :param existing_lmdb_path:
             Path to the LMDB file.
@@ -254,12 +257,10 @@ class StructureDataset(Dataset):
         :type return_structures: bool
 
         :return:
-            The path of the LMDB file, the number of structures in the LMDB file, and optionally the structures.
-            If return_structures is False, an empty list is returned instead of the structures.
-        :rtype: tuple[Path, int, list[Structure]]
+            The path of the LMDB file.
+            The structures in the LMDB file if return_structures is True, otherwise the keys of the structures.
+        :rtype: tuple[Path, Union[list[Structure], list[bytes]]]
 
-        :raises KeyError:
-            If any of the required keys are missing in the LMDB records.
         :raises TypeError:
             If any of the required keys have incorrect types in the LMDB records.
         """
@@ -268,41 +269,41 @@ class StructureDataset(Dataset):
               env.begin() as txn):
             number_structures = txn.stat()["entries"]
 
-            for int_key in tqdm(range(number_structures), desc=f"Loading {existing_lmdb_path} data",
-                                unit=" structures"):
-                data = txn.get(str(int_key).encode())
+            for enc_key, data in tqdm(txn.cursor(), desc=f"Loading {existing_lmdb_path} data", unit=" structures",
+                                      total=number_structures):
+                key = enc_key.decode()
                 lmdb_structure = pickle.loads(data)
 
                 if "cell" not in lmdb_structure:
-                    raise KeyError(f"Key {int_key} in the lmdb file does not contain 'cell'.")
+                    raise KeyError(f"Key {key} in the lmdb file does not contain 'cell'.")
                 if not isinstance(lmdb_structure["cell"], torch.Tensor):
-                    raise TypeError(f"Key {int_key} in the lmdb file has 'cell' of type "
+                    raise TypeError(f"Key {key} in the lmdb file has 'cell' of type "
                                     f"{type(lmdb_structure["cell"])}, expected torch.Tensor.")
                 if not torch.is_floating_point(lmdb_structure["cell"]):
-                    raise TypeError(f"Key {int_key} in the lmdb file has 'cell' of "
+                    raise TypeError(f"Key {key} in the lmdb file has 'cell' of "
                                     f"dtype {lmdb_structure["cell"].dtype}, expected floating point dtype.")
 
                 if "atomic_numbers" not in lmdb_structure:
-                    raise KeyError(f"Key {int_key} in the lmdb file does not contain 'atomic_numbers'.")
+                    raise KeyError(f"Key {key} in the lmdb file does not contain 'atomic_numbers'.")
                 if not isinstance(lmdb_structure["atomic_numbers"], torch.Tensor):
-                    raise TypeError(f"Key {int_key} in the lmdb file has 'atomic_numbers' of type "
+                    raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of type "
                                     f"{type(lmdb_structure["atomic_numbers"])}, expected torch.Tensor.")
                 if not lmdb_structure["atomic_numbers"].dtype is torch.int:
-                    raise TypeError(f"Key {int_key} in the lmdb file has 'atomic_numbers' of dtype "
+                    raise TypeError(f"Key {key} in the lmdb file has 'atomic_numbers' of dtype "
                                     f"{lmdb_structure["atomic_numbers"].dtype}, expected torch.int.")
 
                 if "pos" not in lmdb_structure:
-                    raise KeyError(f"Key {int_key} in the lmdb file does not contain 'pos'.")
+                    raise KeyError(f"Key {key} in the lmdb file does not contain 'pos'.")
                 if not isinstance(lmdb_structure["pos"], torch.Tensor):
-                    raise TypeError(f"Key {int_key} in the lmdb file has 'pos' of type "
+                    raise TypeError(f"Key {key} in the lmdb file has 'pos' of type "
                                     f"{type(lmdb_structure["pos"])}, expected torch.Tensor.")
                 if not torch.is_floating_point(lmdb_structure["pos"]):
-                    raise TypeError(f"Key {int_key} in the lmdb file has 'pos' of dtype "
+                    raise TypeError(f"Key {key} in the lmdb file has 'pos' of dtype "
                                     f"{lmdb_structure["pos"].dtype}, expected floating point dtype.")
 
-                metadata = {"file_path": str(existing_lmdb_path), "file_key": int_key}
+                metadata = {"file_path": str(existing_lmdb_path), "file_key": key}
                 if "ids" in lmdb_structure and "identifier" in lmdb_structure:
-                    raise KeyError(f"Key {int_key} in the lmdb file contains both 'ids' and 'identifier'. Only one of "
+                    raise KeyError(f"Key {key} in the lmdb file contains both 'ids' and 'identifier'. Only one of "
                                    f"these should be present.")
                 # Included for backwards compatibility.
                 if "ids" in lmdb_structure:
@@ -312,22 +313,24 @@ class StructureDataset(Dataset):
 
                 for prop in property_keys:
                     if prop not in lmdb_structure:
-                        raise KeyError(f"Key {int_key} in the lmdb file does not contain '{prop}'.")
+                        raise KeyError(f"Key {key} in the lmdb file does not contain '{prop}'.")
 
                 # Test whether the structure can be created.
                 structure = Structure.from_dictionary(lmdb_structure, property_keys, metadata, pos_is_fractional=False)
                 if return_structures:
                     structures.append(structure)
+                else:
+                    structures.append(enc_key)
 
-        return existing_lmdb_path, number_structures, structures
+        return existing_lmdb_path, structures
 
     @staticmethod
     def _from_csv(existing_csv_path: Path, property_keys: Sequence[str], return_structures: bool,
                   cdvae_preprocessing: bool = True,
-                  mattergen_preprocessing: bool = False) -> tuple[Path, int, list[Structure]]:
+                  mattergen_preprocessing: bool = False) -> tuple[Path, Union[list[Structure], list[bytes]]]:
         """
-        Check proper format of the CSV file for crystalline structures, convert to LMDB, and return the LMDB path, the
-        number of structures, and optionally the structures themselves.
+        Check proper format of the CSV file for crystalline structures, convert to LMDB, and return the LMDB path, and
+        the structures or their keys within the LMDB file.
 
         The CSV file is expected to contain a "cif" column with the CIF representation of the structures. This will be
         used to infer the cell, atomic numbers, and positions of the structures.
@@ -350,8 +353,8 @@ class StructureDataset(Dataset):
         If the cache file already exists, it is used directly instead of creating a new one.
 
         In order to verify the correctness of the CSV file, this method reads all records and checks for the presence
-        and correct types of the required keys. If return_structures is set to True, the created structures are also
-        returned.
+        and correct types of the required keys. If return_structures is set to True, the created structures are
+        returned. If return_structures is set to False, only the keys of the structures in the LMDB file are returned.
 
         :param existing_csv_path:
             Path to the CSV file.
@@ -374,9 +377,9 @@ class StructureDataset(Dataset):
         :type mattergen_preprocessing: bool
 
         :return:
-            The path of the LMDB file, the number of structures in the LMDB file, and optionally the structures.
-            If return_structures is False, an empty list is returned instead of the structures.
-        :rtype: tuple[Path, int, list[Structure]]
+            The path of the LMDB file.
+            The structures in the LMDB file if return_structures is True, otherwise the keys of the structures.
+        :rtype: tuple[Path, Union[list[Structure], list[bytes]]]
 
         :raises ValueError:
             If both cdvae_preprocessing and mattergen_preprocessing are enabled at the same time.
@@ -469,19 +472,22 @@ class StructureDataset(Dataset):
 
                 structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
                                       metadata=metadata, pos_is_fractional=False)
+                structure_key = str(structure_index).encode()
                 if return_structures:
                     structures.append(structure)
+                else:
+                    structures.append(structure_key)
 
                 # to_dictionary always returns Cartesian positions.
                 lmdb_structure = structure.to_dictionary()
-                txn.put(str(structure_index).encode(), pickle.dumps(lmdb_structure))
+                txn.put(structure_key, pickle.dumps(lmdb_structure))
 
                 number_structures += 1
 
         if changed_structures > 0:
             warnings.warn(f"{changed_structures} structures were changed during preprocessing.")
 
-        return cache_file, number_structures, structures
+        return cache_file, structures
 
     def to_lmdb(self, lmdb_path: Path) -> None:
         """
@@ -558,7 +564,7 @@ class StructureDataset(Dataset):
         """
         Return the structure at the given index using lazy storage.
 
-        The structure is read lazily from the LMDB file of this class at the given key.
+        The structure is read lazily from the LMDB file of this class.
 
         This method is only used if lazy_storage is set to True during initialization of this class. Otherwise,
         the __getitem__ method returns structures directly from the in-memory self._structures list.
@@ -593,8 +599,10 @@ class StructureDataset(Dataset):
         if idx < 0 or idx >= self._number_structures:
             raise IndexError(f"Index {idx} out of bounds for dataset of size {self._number_structures}.")
 
+        # Read structure from LMDB file.
+        structure_idx = self._structures[idx]
         with self._env.begin(write=False) as txn:
-            lmdb_structure = pickle.loads(txn.get(str(idx).encode()))
+            lmdb_structure = pickle.loads(txn.get(structure_idx))
 
         metadata = {"file_path": str(self._file_path), "file_key": idx}
         assert not ("ids" in lmdb_structure and "identifier" in lmdb_structure)
