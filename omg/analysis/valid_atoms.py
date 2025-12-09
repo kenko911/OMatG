@@ -92,8 +92,11 @@ class ValidAtoms(object):
             self._volume_valid = self._structure.volume > volume_check_cutoff
             self._structure_valid = self._structure_check(self._structure, self._structure_check_cutoff)
             if self._volume_valid and self._structure_valid:
-                self._composition_valid = self._smact_check(self._composition, self._use_pauling_test,
-                                                            self._include_alloys, self._upper_narity_limit)
+                try:
+                    self._composition_valid = self._smact_check(self._composition, self._use_pauling_test,
+                                                                self._include_alloys, self._upper_narity_limit)
+                except TypeError:
+                    self._composition_valid = False
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     try:
