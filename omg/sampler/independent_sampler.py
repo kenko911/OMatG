@@ -3,9 +3,6 @@ from torch_geometric.data import Batch
 from omg.datamodule import OMGData, Structure
 from omg.sampler import Sampler
 from .abstracts import SpeciesDistribution, CellDistribution, PositionDistribution
-from .species_distributions import UniformSpeciesDistribution
-from .cell_distributions import NormalCellDistribution
-from .position_distributions import UniformPositionDistribution
 
 
 class IndependentSampler(Sampler):
