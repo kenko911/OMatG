@@ -184,19 +184,19 @@ data:
     class_path: omg.datamodule.StructureDataset
     init_args:
       file_path: "data/mp_20/train.lmdb"
-      lazy_storage: False
+      lazy_storage: True
       niggli_reduce: False  # Apply ASE's Niggli reduction to all structures.
   val_dataset:
     class_path: omg.datamodule.StructureDataset
     init_args:
       file_path: "data/mp_20/val.lmdb"
-      lazy_storage: False
+      lazy_storage: True
       niggli_reduce: False  # Apply ASE's Niggli reduction to all structures.
   pred_dataset:
     class_path: omg.datamodule.StructureDataset
     init_args:
       file_path: "data/mp_20/test.lmdb"
-      lazy_storage: False
+      lazy_storage: True
       niggli_reduce: False  # Apply ASE's Niggli reduction to all structures.
   batch_size: 32
   num_workers: 4
