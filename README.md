@@ -466,7 +466,7 @@ composition). By default, each composition is only included once.
 The name of the created lmdb file is specified by `<lmdb_file>`. This lmdb file can then be used as the prediction 
 dataset in the configuration file for predicting structures with the desired compositions with the `omg predict` command 
 above (it is also possible to overwrite the prediction dataset on the command line with the 
-`--data.predict_dataset.init_args.dataset.init_args.lmdb_paths=[<lmdb_file>]` argument).
+`--data.pred_dataset.file_path=<lmdb_file>` argument).
 
 Importantly, one should use a checkpoint of a crystal-structure-prediction model whose training set includes the 
 elements of the desired compositions in the `omg predict` command.
