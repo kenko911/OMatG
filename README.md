@@ -372,8 +372,8 @@ Installing the `omg` package as described above provides the `omg` command for t
 
 ### Included Datasets
 
-For convenience, we include several standard material datasets that can be used for training. They can be found in the 
-[```omg/data```](omg/data) directory and are described briefly below:
+For convenience, we include several standard material datasets that can be used for training. They can be found as 
+LMDB files in the [```omg/data```](omg/data) directory and are described briefly below:
 
 - *MP-20*: 45,229 structures from the [Materials Project](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) with a maximum of 20 atoms per structure.
 - *MPTS-52*: [Chronological data split of the Materials Project](https://joss.theoj.org/papers/10.21105/joss.05618) with 40,476 structures and up to 52 atoms per 
@@ -397,10 +397,16 @@ We further provide the following newly cultivated datasets, most of which are in
     - *Carbon-X*: A dataset with 480 duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
     - *Carbon-NXL*: A dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different.
 
+The format of the LMDB files is described in the documentation of the 
+[`StructureDataset`](omg/datamodule/structure_dataset.py) that is used to parse these files. Note that this class can 
+also read CSV files containing a `cif` column with the CIF representation of the structures (as used by CDVAE, DiffCSP, 
+FlowMM, and MatterGen).
+
 ### Downloading Datasets
 
 Some datasets are not included in this repository, for example, because they are too large. These datasets can be 
-downloaded from [Hugging Face](https://huggingface.co/OMatG/datasets). 
+downloaded from [Hugging Face](https://huggingface.co/OMatG/datasets) in the Parquet format that can be directly used 
+in the [`StructureDataset`](omg/datamodule/structure_dataset.py). 
 
 Installing the `omg` package as described also provides the `omg_load` command for downloading OMatG datasets. This 
 command expects the name of the dataset as the sole argument and will download the dataset into a directory named 
