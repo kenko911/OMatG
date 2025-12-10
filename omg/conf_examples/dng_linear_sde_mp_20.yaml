@@ -81,19 +81,19 @@ data:
     class_path: omg.datamodule.StructureDataset
     init_args:
       file_path: "data/mp_20/train.lmdb"
-      lazy_storage: False
+      lazy_storage: True
       niggli_reduce: False
   val_dataset:
     class_path: omg.datamodule.StructureDataset
     init_args:
       file_path: "data/mp_20/val.lmdb"
-      lazy_storage: False
+      lazy_storage: True
       niggli_reduce: False
   pred_dataset:
     class_path: omg.datamodule.StructureDataset
     init_args:
       file_path: "data/mp_20/test.lmdb"
-      lazy_storage: False
+      lazy_storage: True
       niggli_reduce: False
   batch_size: 512
 trainer:
