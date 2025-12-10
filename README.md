@@ -34,7 +34,7 @@ These papers should be [cited](#citing-omatg) when using OMatG or the newly intr
 
 - [Overview.](#overview)
 - [Installation.](#installation)
-- [Included Datasets.](#included-datasets)
+- [Datasets.](#datasets)
 - [Training.](#training)
 - [Generation.](#generation)
 - [Visualization.](#visualization)
@@ -368,7 +368,9 @@ available in the installed `omg` package.
 
 Installing the `omg` package as described above provides the `omg` command for training, generation, and evaluation.
 
-## Included Datasets
+## Datasets
+
+### Included Datasets
 
 For convenience, we include several standard material datasets that can be used for training. They can be found in the 
 [```omg/data```](omg/data) directory and are described briefly below:
@@ -377,12 +379,7 @@ For convenience, we include several standard material datasets that can be used 
 - *MPTS-52*: [Chronological data split of the Materials Project](https://joss.theoj.org/papers/10.21105/joss.05618) with 40,476 structures and up to 52 atoms per 
   structure.
 - *Perov-5*: A [perovskite dataset](https://pubs.rsc.org/en/content/articlelanding/2012/ee/c2ee22341d) containing 18,928 structures each with five atoms per structure.
-- *Carbon-24*: A [dataset](https://arxiv.org/abs/2110.06197) of 10,153 structures consisting only of carbon with up to 24 atoms per structure. 
-- *Alex-MP-20*: New split of a [consolidated dataset](https://www.nature.com/articles/s41586-025-08628-5) of 675,204 
-  structures of [*Alexandria*](https://arxiv.org/abs/2210.00579) and [*MP-20*](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) 
-  structures. In comparison to [MatterGen's](https://github.com/microsoft/mattergen) dataset, we removed 10% of the 
-  training data to create a test dataset. The *Alex-MP-20* dataset is too large to be stored in this repository. We have 
-  made it available via the [HuggingFace link](https://huggingface.co/OMatG) associated with this project.
+- *Carbon-24*: A [dataset](https://arxiv.org/abs/2110.06197) of 10,153 structures consisting only of carbon with up to 24 atoms per structure.
 
 We further provide the following newly cultivated datasets, most of which are included in the OMatG repository in the 
 [```omg/data```](omg/data) directory, and all of which can also be found on 
@@ -392,23 +389,41 @@ We further provide the following newly cultivated datasets, most of which are in
   set structures contain 6–10, validation set structures contain 12–14, and test set structures contain 16–24 atoms. 
   Analogously, the high-to-low split has 10–24 atoms in the training set structures, 8 atoms in the validation set
   structures, and 6 atoms in the test set structures.
-- *Perov-5-polymorph-split*, *MP-20-polymorph-split*, *Alex-MP-20-polymorph-split*: Polymorph-aware splits of the 
+- *Perov-5-polymorph-split*, *MP-20-polymorph-split*: Polymorph-aware splits of the 
   corresponding datasets which sequester polymorphs (different structures of the same composition) to the same split.
-  The *Perov-5-polymorph-split* and *MP-20-polymorph-split* datasets are available in 
-  [```omg/data/perov_5_ps```](omg/data/perov_5_ps) and [```omg/data/mp_20_ps```](omg/data/mp_20_ps), respectively. 
-  The *Alex-MP-20-polymorph-split* is only available on 
-  [HuggingFace](https://huggingface.co/datasets/colabfit/Alex-MP-20_Polymorph_Split).
+  They are available in [```omg/data/perov_5_ps```](omg/data/perov_5_ps) and [```omg/data/mp_20_ps```](omg/data/mp_20_ps), respectively.
 -  Overfitting datasets for testing model handling of symmetries in 
   [```omg/data/carbon_24_unique/overfitting_datasets```](omg/data/carbon_24_unique/overfitting_datasets): 
     - *Carbon-X*: A dataset with 480 duplicates of a single structure from *Carbon-24* where only the fractional coordinates *X* are different.
-    - *Carbon-NXL*: A dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different. 
-- Datasets with explicitly labeled chiral pairs that are only available on 
-  [HuggingFace](https://huggingface.co/collections/colabfit/carbon-24-martirossyan-et-al): 
-  - *Carbon-24-unique-with-enantiomorphs*: A duplicate-pruned version of *Carbon-24* with 4,330 structures where 
-    enantiomorph pairs are treated as distinct structures and labeled. By contrast in *Carbon-24-unique*, only one of 
-    each pair is included because PyMatgen's `StructureMatcher` cannot distinguish between chiral pairs.
-  - *Carbon-enantiomorphs*: A toy dataset of 160 chiral structures split into two sets, with enantiomorphic pairs of 
-    structures from *Carbon-24-unique-with-enantiomorphs* at the same index.
+    - *Carbon-NXL*: A dataset with 353 duplicates of a single structure from *Carbon-24* where the fractional coordinates *X*, the number of atoms *N*, and the cell shape *L* are different.
+
+### Downloading Datasets
+
+Some datasets are not included in this repository, for example, because they are too large. These datasets can be 
+downloaded from [Hugging Face](https://huggingface.co/OMatG/datasets). 
+
+Installing the `omg` package as described also provides the `omg_load` command for downloading OMatG datasets. This 
+command expects the name of the dataset as the sole argument and will download the dataset into a directory named 
+according to the dataset. For example, the following command downloads the `Alex-MP-20_Polymorph_Split` dataset into the 
+`Alex-MP-20_Polymorph_Split` directory within the current working directory:
+
+```bash
+omg_load Alex-MP-20_Polymorph_Split
+```
+
+The command `omg_load --list` lists all available OMatG datasets on Hugging Face:
+
+- *Alex-MP-20*: New split of a [consolidated dataset](https://www.nature.com/articles/s41586-025-08628-5) of 675,204 
+  structures of [*Alexandria*](https://arxiv.org/abs/2210.00579) and [*MP-20*](https://pubs.aip.org/aip/apm/article/1/1/011002/119685/Commentary-The-Materials-Project-A-materials) 
+  structures. In comparison to [MatterGen's](https://github.com/microsoft/mattergen) dataset, we removed 10% of the 
+  training data to create a test dataset.
+- *Alex-MP-20-polymorph-split*: Polymorph-aware split of *Alex-MP-20* which sequesters polymorphs (different structures 
+  of the same composition) to the same split.
+- *Carbon-24-unique-with-enantiomorphs*: A duplicate-pruned version of *Carbon-24* with 4,330 structures where 
+  enantiomorph pairs are treated as distinct structures and labeled. By contrast in *Carbon-24-unique*, only one of 
+  each pair is included because PyMatgen's `StructureMatcher` cannot distinguish between chiral pairs.
+- *Carbon-enantiomorphs*: A toy dataset of 160 chiral structures split into two sets, with enantiomorphic pairs of 
+  structures from *Carbon-24-unique-with-enantiomorphs* at the same index.
 
 ## Training
 
