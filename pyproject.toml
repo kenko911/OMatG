@@ -29,11 +29,13 @@ dependencies = [
     "pymatgen ~= 2025.6",
     "spglib ~= 2.6",
     "pyyaml ~= 6.0",
-    "matminer ~= 0.9"
+    "matminer ~= 0.9",
+    "huggingface_hub ~= 1.2"
 ]
 
 [project.scripts]
 omg = "omg.main:main"
+omg_load = "omg.main:load"
 
 [tool.setuptools.packages.find]
 where = ["."]
