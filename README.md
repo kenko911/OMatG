@@ -13,7 +13,7 @@
 [![Lightning](https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white)](https://github.com/Lightning-AI/lightning)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![Static Badge](https://img.shields.io/badge/Version-1.2.0-blue)
+![Static Badge](https://img.shields.io/badge/Version-1.2.1-blue)
 
 A state-of-the-art generative model for crystal structure prediction and *de novo* generation of inorganic crystals. 
 This open-source framework accompanies the [ICML 2025 paper](https://openreview.net/forum?id=gHGrzxFujU) about the 
