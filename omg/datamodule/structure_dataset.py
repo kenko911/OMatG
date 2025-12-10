@@ -6,7 +6,9 @@ from typing import Any, Optional, Sequence, Union
 import warnings
 from ase.io import write
 import lmdb
+import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure as PymatgenStructure, Lattice as PymatgenLattice
 import torch
@@ -27,12 +29,12 @@ class StructureDataset(Dataset):
     If lazy_storage is set to True, only the structure keys in the LMDB database are stored in memory, and the
     structures are read from the LMDB file when they are requested via the __getitem__ method.
 
-    The supported file formats for the storage of crystalline structures are LMDB and CSV. The specific format is
+    The supported file formats for reading crystalline structures are LMDB, CSV, and Parquet. The specific format is
     inferred from the file extension.
 
-    The _from_lmdb and _from_csv methods are used to read the structures from the respective file formats on
-    initialization of this class. If lazy_storage is set to True, the _from_lmdb method also serves as a test case
-    for the LMDB reading functionality.
+    The _from_lmdb, _from_csv, and _from_parquet methods are used to read the structures from the respective file
+    formats on initialization of this class. If lazy_storage is set to True, the _from_lmdb method also serves as a
+    test case for the LMDB reading functionality.
 
     Since preprocessing CSV files can be costly, the _from_csv method reads structures from a CSV file containing CIF
     strings and converts them to the LMDB format for efficient future access. The created LMDB cache file will also be
@@ -40,8 +42,11 @@ class StructureDataset(Dataset):
     directory as the CSV file and is named based on the hash of the CSV file and the preprocessing options used. If the
     cache file already exists, it is used directly instead of creating a new one.
 
-    The _from_lmdb and _from_csv methods document the expected file contents for their respective file types in more
-    detail.
+    Likewise, since preprocessing Parquet files can be costly, the _from_parquet method reads structures from a Parquet
+    file and converts them to the LMDB format for efficient future access and lazy storage.
+
+    The _from_lmdb, _from_csv, and _from_parquet methods document the expected file contents for their respective file
+    types in more detail.
 
     This class also provides methods to save all the structures in LMDB or xyz format.
 
@@ -51,7 +56,7 @@ class StructureDataset(Dataset):
         Path to the file containing the structures.
         This can either be an absolute path, a relative path to the current working directory, or a relative path within
         the omg package.
-        Supported formats are .lmdb and .csv.
+        Supported formats are .lmdb, .csv, and .parquet.
     :type file_path: str
     :param property_keys:
         An optional sequence of property keys that should be read from the file and stored within the structures.
@@ -118,8 +123,12 @@ class StructureDataset(Dataset):
         if path.suffix == ".lmdb":
             if cdvae_preprocessing is not None or mattergen_preprocessing is not None:
                 warnings.warn("CDVAE and MatterGen preprocessing options are ignored when reading from LMDB files.")
-            # noinspection PyArgumentList
             self._file_path, self._structures = self._from_lmdb(
+                existing_file_path, self._property_keys, return_structures=not lazy_storage)
+        elif path.suffix == ".parquet":
+            if cdvae_preprocessing is not None or mattergen_preprocessing is not None:
+                warnings.warn("CDVAE and MatterGen preprocessing options are ignored when reading from LMDB files.")
+            self._file_path, self._structures = self._from_parquet(
                 existing_file_path, self._property_keys, return_structures=not lazy_storage)
         elif path.suffix == ".csv":
             if cdvae_preprocessing is None or mattergen_preprocessing is None:
@@ -220,7 +229,7 @@ class StructureDataset(Dataset):
     def _from_lmdb(existing_lmdb_path: Path, property_keys: Sequence[str],
                    return_structures: bool) -> tuple[Path, Union[list[Structure], list[bytes]]]:
         """
-        Check proper format of the LMDB file for crystalline structures and return its path, and the structures or
+        Check proper format of the LMDB file for crystalline structures, and return its path and the structures or
         their keys within the LMDB file.
 
         The keys in the LMDB file are expected to be bytes.
@@ -313,7 +322,8 @@ class StructureDataset(Dataset):
 
                 for prop in property_keys:
                     if prop not in lmdb_structure:
-                        raise KeyError(f"Key {key} in the lmdb file does not contain '{prop}'.")
+                        raise KeyError(f"Key {key} in the lmdb file does not contain '{prop}'. "
+                                       f"Available keys are {list(lmdb_structure.keys())}.")
 
                 # Test whether the structure can be created.
                 structure = Structure.from_dictionary(lmdb_structure, property_keys, metadata, pos_is_fractional=False)
@@ -329,15 +339,15 @@ class StructureDataset(Dataset):
                   cdvae_preprocessing: bool = True,
                   mattergen_preprocessing: bool = False) -> tuple[Path, Union[list[Structure], list[bytes]]]:
         """
-        Check proper format of the CSV file for crystalline structures, convert to LMDB, and return the LMDB path, and
+        Check proper format of the CSV file for crystalline structures, convert to LMDB, and return the LMDB path and
         the structures or their keys within the LMDB file.
 
         The CSV file is expected to contain a "cif" column with the CIF representation of the structures. This will be
         used to infer the cell, atomic numbers, and positions of the structures.
 
         The metadata of each structure will contain the following keys:
-        - "file_path": The path to the CSV file from which the structure was loaded.
-        - "file_key": The index in the CSV file corresponding to the structure.
+        - "file_path": The path to the cache LMDB file in which the structures are stored (see below).
+        - "file_key": The index in the LMDB file corresponding to the structure.
         - "identifier": If a "material_id" column is present in the CSV file, it will be stored here. This is usually a
                         unique identifier of the structure, e.g., from Materials Project.
 
@@ -413,7 +423,8 @@ class StructureDataset(Dataset):
         if property_keys is not None:
             for prop in property_keys:
                 if prop not in csv_columns:
-                    raise KeyError(f"CSV file does not contain '{prop}' column.")
+                    raise KeyError(f"CSV file does not contain '{prop}' column. "
+                                   f"Available columns are {[c for c in csv_columns]}.")
 
         # Make sure to only read one row at a time to avoid reading the entire file into memory.
         csv_structures = pd.read_csv(existing_csv_path, chunksize=1)
@@ -487,6 +498,118 @@ class StructureDataset(Dataset):
         if changed_structures > 0:
             warnings.warn(f"{changed_structures} structures were changed during preprocessing.")
 
+        return cache_file, structures
+
+    @staticmethod
+    def _from_parquet(existing_parquet_path: Path, property_keys: Sequence[str],
+                      return_structures: bool) -> tuple[Path, Union[list[Structure], list[bytes]]]:
+        """
+        Check proper format of the Parquet file for crystalline structures, convert to LMDB, and return the LMDB path
+        and the structures or their keys within the LMDB file.
+
+        The Parquet file is expected to contain the following columns to represent a structure with N atoms:
+        - "cell": 3x3 array-like of the lattice vectors.
+                  The [i, j]-th element is the jth Cartesian coordinate of the ith unit vector.
+        - "positions": Nx3 array-like of Cartesian atomic positions.
+        - "atomic_numbers": array-like of N integers giving the atomic numbers of the atoms.
+
+         The metadata of each structure will contain the following keys:
+        - "file_path": The path to the cache LMDB file from in which the structures are stores (see below).
+        - "file_key": The index in the LMDB file corresponding to the structure.
+        - "identifier": If an "ids" or "identifier" column is present in the Parquet file, it will be stored here. This
+                        is usually a unique identifier of the structure, e.g., from Materials Project.
+
+        It is possible to read additional property keys from the Parquet file into the structures by specifying them in
+        the property_keys parameter. These keys will be read from the Parquet file and stored in the property_dict of
+        the structure.
+
+        The structures are converted to the LMDB format for efficient access. The LMDB cache file is created in the same
+        directory as the Parquet file and is named based on the hash of the Parquet file. If the cache file already
+        exists, it is used directly instead of creating a new one.
+
+        In order to verify the correctness of the Parquet file, this method reads all rows and checks for the presence
+        and correct types of the required keys. If return_structures is set to True, the created structures are
+        returned. If return_structures is set to False, only the keys of the structures in the LMDB file are returned.
+
+        :param existing_parquet_path:
+            Path to the Parquet file.
+        :type existing_parquet_path: Path
+        :param property_keys:
+            A sequence of property keys that are read from the CSV file and stored within the structures.
+        :type property_keys: Sequence[str]
+        :param return_structures:
+            Whether to return the structures read from the CSV file.
+        :type return_structures: bool
+
+        :return:
+            The path of the LMDB file.
+            The structures in the LMDB file if return_structures is True, otherwise the keys of the structures.
+        :rtype: tuple[Path, Union[list[Structure], list[bytes]]]
+
+        :raises KeyError:
+            If any of the required keys are missing in the Parquet records.
+        """
+        file_hash = StructureDataset._compute_file_hash(existing_parquet_path, algorithm="sha256")
+        cache_file = existing_parquet_path.with_suffix(f".parquet.{file_hash}.lmdb")
+
+        if cache_file.exists():
+            return StructureDataset._from_lmdb(cache_file, property_keys, return_structures)
+
+        structures = []
+        with (pq.ParquetFile(existing_parquet_path) as parquet_file,
+              lmdb.Environment(str(cache_file), subdir=False, map_size=int(1e12), lock=False) as env,
+              env.begin(write=True) as txn):
+            # Check for correct columns.
+            schemas = parquet_file.schema_arrow
+            columns = [s.name for s in schemas]
+            if "positions" not in columns:
+                raise KeyError(f"Parquet file does not contain 'positions' column.")
+            if "cell" not in columns:
+                raise KeyError(f"Parquet file does not contain 'cell' column.")
+            if "atomic_numbers" not in columns:
+                raise KeyError(f"Parquet file does not contain 'atomic_numbers' column.")
+            if property_keys is not None:
+                for prop in property_keys:
+                    if prop not in columns:
+                        raise KeyError(f"Parquet file does not contain '{prop}' column. "
+                                       f"Available columns are {columns}.")
+
+            # Make sure to only read one row at a time to avoid reading the entire file into memory.
+            number_structures = parquet_file.metadata.num_rows
+            for batch_index, batch in tqdm(enumerate(parquet_file.iter_batches(batch_size=1)), total=number_structures):
+                # noinspection PyUnresolvedReferences
+                df = batch.to_pandas()
+                assert len(df) == 1
+                atomic_numbers = torch.from_numpy(np.array(df["atomic_numbers"].iloc[0], dtype=np.int64))
+                assert len(atomic_numbers.shape) == 1
+                pos = torch.from_numpy(np.stack(df["positions"].iloc[0]))
+                assert pos.shape == (atomic_numbers.shape[0], 3)
+                cell = torch.from_numpy(np.stack(df["cell"].iloc[0]))
+                assert cell.shape == (3, 3)
+
+                metadata = {"file_path": str(cache_file), "file_key": batch_index}
+                if "ids" in df.columns:
+                    metadata["identifier"] = df["ids"].iloc[0]
+                if "identifier" in df.columns:
+                    metadata["identifier"] = df["identifier"].iloc[0]
+
+                property_dict = {}
+                for prop in property_keys:
+                    property_dict[prop] = torch.tensor(df[prop].iloc[0])
+
+                structure = Structure(cell=cell, atomic_numbers=atomic_numbers, pos=pos, property_dict=property_dict,
+                                      metadata=metadata, pos_is_fractional=False)
+                structure_key = str(batch_index).encode()
+                if return_structures:
+                    structures.append(structure)
+                else:
+                    structures.append(structure_key)
+
+                # to_dictionary always returns Cartesian positions.
+                lmdb_structure = structure.to_dictionary()
+                txn.put(structure_key, pickle.dumps(lmdb_structure))
+
+        assert len(structures) == number_structures
         return cache_file, structures
 
     def to_lmdb(self, lmdb_path: Path) -> None:
