@@ -592,6 +592,8 @@ class StructureDataset(Dataset):
                     metadata["identifier"] = df["ids"].iloc[0]
                 if "identifier" in df.columns:
                     metadata["identifier"] = df["identifier"].iloc[0]
+                if "material_id" in df.columns:
+                    metadata["identifier"] = df["material_id"].iloc[0]
 
                 property_dict = {}
                 for prop in property_keys:
@@ -846,6 +848,25 @@ class OverfittingDataset(StructureDataset):
 
 
 if __name__ == '__main__':
+    dataset_parquet = StructureDataset(file_path="data/Alex-MP-20_Polymorph_Split/test.parquet", lazy_storage=False,
+                                       niggli_reduce=False, convert_to_fractional=True)
+    dataset_lmdb = StructureDataset(file_path="data/alex_mp_20/test.lmdb", lazy_storage=False, niggli_reduce=False,
+                                    convert_to_fractional=True)
+    found = 0
+    for parquet in tqdm(dataset_parquet):
+        lmdbs = [lmdb for lmdb in dataset_lmdb if lmdb.metadata["identifier"] == parquet.metadata["identifier"]]
+        if len(lmdbs) > 0:
+            assert len(lmdbs) == 1
+            lmdb = lmdbs[0]
+            assert all(ca == la for ca, la in zip(parquet.atomic_numbers, lmdb.atomic_numbers))
+            csv_structure = parquet.get_pymatgen_structure()
+            lmdb_structure = lmdb.get_pymatgen_structure()
+            sm = StructureMatcher(ltol=1e-3, angle_tol=1e-3, stol=1e-3, scale=False)
+            res = sm.get_rms_dist(csv_structure, lmdb_structure)
+            assert res is not None
+            found += 1
+    print("Found:", found)
+
     store = True
     lazy = False
     suffix = "lazy_second_frac" if lazy else "eager_second_frac"
