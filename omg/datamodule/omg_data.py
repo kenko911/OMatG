@@ -49,7 +49,9 @@ class OMGData(Data):
         else:
             self.n_atoms = torch.tensor(len(structure.atomic_numbers))  # Shape: (1, )
             self.species = structure.atomic_numbers  # Shape: (n_atoms, )
-            self.cell = structure.cell.unsqueeze(0) # Shape: (1, 3, 3).
-            self.pos = structure.pos  # Shape: (n_atoms, 3).
-            self.pos_is_fractional = torch.tensor(structure.pos_is_fractional, dtype=torch.bool)  # Shape: (1, )
+            self.cell = structure.cell.unsqueeze(0).float()  # Shape: (1, 3, 3).
+            self.pos = structure.pos.float()  # Shape: (n_atoms, 3).
+            self.pos_is_fractional = torch.tensor(
+                structure.pos_is_fractional, dtype=torch.bool
+            )  # Shape: (1, )
             self.property = structure.property_dict
